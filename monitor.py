@@ -22,82 +22,190 @@ HORARIO_EXECUCAO = "18:30"
 CAMINHO_HTML = "relatorio_monitor.html"
 
 def gerar_html(relatorios_por_carteira):
-    titulo = f"Relatório de Médias Móveis - {datetime.now().strftime('%d/%m/%Y')}"
+    titulo = f"Relatório de Médias Móveis - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     html_tabelas = ""
     
     for carteira, df_relatorio in relatorios_por_carteira.items():
         html_tabelas += f"<h3>{carteira}</h3>\n"
         if not df_relatorio.empty:
-            tabela = df_relatorio.to_html(index=False, border=0, justify="center", classes="tabela-carteira")
-            html_tabelas += f"{tabela}\n"
+            # Criar HTML customizado para a tabela
+            html_tabelas += "<table>\n<thead>\n<tr>"
+            html_tabelas += "<th>Ativo</th><th>Abertura</th><th>Fechamento</th><th>Sinal</th>"
+            html_tabelas += "<th>SMA17</th><th>SMA72</th><th>Distancia</th>"
+            html_tabelas += "<th>Minimo (5y)</th><th>Maximo (5y)</th>"
+            html_tabelas += "</tr>\n</thead>\n<tbody>\n"
+            
+            for _, row in df_relatorio.iterrows():
+                sinal_class = "compra" if "COMPRA" in str(row['Sinal']) else "venda" if "VENDA" in str(row['Sinal']) else "neutro"
+                tooltip = "Sinal de COMPRA: media movel 17 cruzou acima de 72" if "COMPRA" in str(row['Sinal']) else \
+                          "Sinal de VENDA: media movel 17 cruzou abaixo de 72" if "VENDA" in str(row['Sinal']) else \
+                          "Sem sinal de cruzamento no momento"
+                
+                html_tabelas += f"<tr>"
+                html_tabelas += f"<td><strong>{row['Ativo']}</strong></td>"
+                html_tabelas += f"<td>R$ {row['Abertura']:.2f}</td>"
+                html_tabelas += f"<td>R$ {row['Fechamento']:.2f}</td>"
+                html_tabelas += f"<td title='{tooltip}' class='{sinal_class}'>{row['Sinal']}</td>"
+                html_tabelas += f"<td>{row['SMA17']:.2f}</td>"
+                html_tabelas += f"<td>{row['SMA72']:.2f}</td>"
+                html_tabelas += f"<td>{row['Distancia']:.2f}</td>"
+                html_tabelas += f"<td>R$ {row['Minimo (5y)']:.2f}</td>"
+                html_tabelas += f"<td>R$ {row['Maximo (5y)']:.2f}</td>"
+                html_tabelas += f"</tr>\n"
+            
+            html_tabelas += "</tbody>\n</table>\n"
         else:
-            html_tabelas += f"<p style='text-align: center; color: #666;'>Nenhum ativo nesta carteira processado.</p>\n"
+            html_tabelas += f"<p style='text-align: center; color: #999;'>Nenhum dado disponível nesta carteira.</p>\n"
         html_tabelas += "<br>"
     
-    html = f"""
-    <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                body {{ 
-                    font-family: Arial, sans-serif; 
-                    padding: 20px; 
-                    background-color: #f9f9f9;
-                }}
-                h2 {{ 
-                    margin-bottom: 20px;
-                    color: #333;
-                    border-bottom: 3px solid #0366d6;
-                    padding-bottom: 10px;
-                }}
-                h3 {{
-                    margin-top: 25px;
-                    color: #555;
-                    background-color: #e8f0f7;
-                    padding: 10px;
-                    border-radius: 5px;
-                }}
-                table {{ 
-                    border-collapse: collapse; 
-                    width: 100%; 
-                    margin-bottom: 15px;
-                    background-color: white;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                    border-radius: 5px;
-                    overflow: hidden;
-                }}
-                th, td {{ 
-                    border: 1px solid #ddd; 
-                    padding: 12px; 
-                    text-align: center;
-                }}
-                th {{ 
-                    background: #0366d6;
-                    color: white;
-                    font-weight: bold;
-                }}
-                tr:nth-child(even) {{
-                    background-color: #f5f5f5;
-                }}
-                tr:hover {{
-                    background-color: #fffacd;
-                }}
-                .compra {{
-                    background-color: #90EE90;
-                    font-weight: bold;
-                }}
-                .venda {{
-                    background-color: #FFB6C6;
-                    font-weight: bold;
-                }}
-            </style>
-        </head>
-        <body>
-            <h2>{titulo}</h2>
-            {html_tabelas if html_tabelas else '<p>Nenhum dado disponível no momento.</p>'}
-        </body>
-    </html>
-    """
+    html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatorio de Medias Moveis</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{ 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 30px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }}
+        
+        .container {{
+            max-width: 1400px;
+            margin: 0 auto;
+        }}
+        
+        h2 {{ 
+            margin-bottom: 30px;
+            color: #2c3e50;
+            text-align: center;
+            font-size: 28px;
+            border-bottom: 4px solid #0366d6;
+            padding-bottom: 15px;
+        }}
+        
+        h3 {{
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: #fff;
+            background: linear-gradient(135deg, #0366d6, #0549a0);
+            padding: 12px 20px;
+            border-radius: 5px;
+            font-size: 18px;
+        }}
+        
+        table {{ 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin-bottom: 25px;
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-radius: 5px;
+            overflow: hidden;
+        }}
+        
+        thead {{
+            background: #2c3e50;
+        }}
+        
+        th {{
+            color: white;
+            padding: 14px;
+            text-align: center;
+            font-weight: 600;
+            border-right: 1px solid #ecf0f1;
+            font-size: 13px;
+        }}
+        
+        th:last-child {{
+            border-right: none;
+        }}
+        
+        td {{
+            padding: 12px 14px;
+            text-align: center;
+            border-right: 1px solid #ecf0f1;
+            font-size: 14px;
+        }}
+        
+        td:last-child {{
+            border-right: none;
+        }}
+        
+        tbody tr {{
+            border-bottom: 1px solid #ecf0f1;
+            transition: background-color 0.3s ease;
+        }}
+        
+        tbody tr:hover {{
+            background-color: #f8f9fa;
+        }}
+        
+        tbody tr:last-child {{
+            border-bottom: none;
+        }}
+        
+        .compra {{
+            background-color: #d4edda;
+            color: #155724;
+            font-weight: bold;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: help;
+        }}
+        
+        .venda {{
+            background-color: #f8d7da;
+            color: #721c24;
+            font-weight: bold;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: help;
+        }}
+        
+        .neutro {{
+            background-color: #e2e3e5;
+            color: #383d41;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: help;
+        }}
+        
+        td[title] {{
+            position: relative;
+        }}
+        
+        strong {{
+            color: #0366d6;
+        }}
+        
+        .footer {{
+            text-align: center;
+            margin-top: 40px;
+            color: #7f8c8d;
+            font-size: 12px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>{titulo}</h2>
+        {html_tabelas if html_tabelas.strip() else '<p style="text-align: center; color: #7f8c8d;">Nenhum dado disponivel no momento.</p>'}
+        <div class="footer">
+            <p>Atualizado automaticamente todos os dias as 18:30 BRT</p>
+            <p>SMA17: Media Movel de 17 periodos | SMA72: Media Movel de 72 periodos</p>
+        </div>
+    </div>
+</body>
+</html>"""
     return html
 
 
@@ -122,14 +230,14 @@ def processar_diario():
                 df['SMA72'] = df['Close'].rolling(window=72).mean()
 
                 # Últimos 2 dias para detectar o cruzamento no fechamento
-                sma17_penultima = df['SMA17'].iloc[-2]
-                sma72_penultima = df['SMA72'].iloc[-2]
-                sma17_ultima = df['SMA17'].iloc[-1]
-                sma72_ultima = df['SMA72'].iloc[-1]
-                fechamento_ultimo = df['Close'].iloc[-1]
-                abertura_ultima = df['Open'].iloc[-1]
-                menor_preco = df['Low'].min()
-                maior_preco = df['High'].max()
+                sma17_penultima = float(df['SMA17'].iloc[-2])
+                sma72_penultima = float(df['SMA72'].iloc[-2])
+                sma17_ultima = float(df['SMA17'].iloc[-1])
+                sma72_ultima = float(df['SMA72'].iloc[-1])
+                fechamento_ultimo = float(df['Close'].iloc[-1])
+                abertura_ultima = float(df['Open'].iloc[-1])
+                menor_preco = float(df['Low'].min())
+                maior_preco = float(df['High'].max())
 
                 if pd.isna([sma17_penultima, sma72_penultima, sma17_ultima, sma72_ultima]).any():
                     continue
@@ -147,11 +255,14 @@ def processar_diario():
 
                 relatorios_por_carteira[carteira].append({
                     "Ativo": ativo,
-                    "Abertura": round(abertura_ultima, 2),
-                    "Fechamento": round(fechamento_ultimo, 2),
+                    "Abertura": round(float(abertura_ultima), 2),
+                    "Fechamento": round(float(fechamento_ultimo), 2),
                     "Sinal": status,
-                    "Menor (5y)": round(menor_preco, 2),
-                    "Maior (5y)": round(maior_preco, 2)
+                    "SMA17": round(float(sma17_ultima), 2),
+                    "SMA72": round(float(sma72_ultima), 2),
+                    "Distancia": round(abs(float(sma17_ultima) - float(sma72_ultima)), 2),
+                    "Minimo (5y)": round(float(menor_preco), 2),
+                    "Maximo (5y)": round(float(maior_preco), 2)
                 })
                 print(f"  [OK] {ativo}: {status}")
                 
