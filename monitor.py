@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
@@ -21,7 +22,7 @@ toaster = ToastNotifier() if ToastNotifier else None
 HORARIO_EXECUCAO = "18:30"
 CAMINHO_HTML = "relatorio_monitor.html"
 
-def gerar_html(relatorios_por_carteira):
+def gerar_html(relatorios_por_carteira, charts_data):
     titulo = f"Relatório de Médias Móveis - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     html_tabelas = ""
     
@@ -42,7 +43,7 @@ def gerar_html(relatorios_por_carteira):
                           "NEUTRO: Medias estao no mesmo nivel"
                 
                 html_tabelas += f"<tr>"
-                html_tabelas += f"<td><strong>{row['Ativo']}</strong></td>"
+                html_tabelas += f"<td><button class='asset-link' onclick=\"openChart('{row['Ativo']}')\">{row['Ativo']}</button></td>"
                 html_tabelas += f"<td>R$ {row['Abertura']:.2f}</td>"
                 html_tabelas += f"<td>R$ {row['Fechamento']:.2f}</td>"
                 html_tabelas += f"<td title='{tooltip}' class='{sinal_class}'>{row['Sinal']}</td>"
@@ -194,7 +195,55 @@ def gerar_html(relatorios_por_carteira):
             color: #7f8c8d;
             font-size: 12px;
         }}
+        .asset-link {{
+            background: none;
+            border: none;
+            color: #0366d6;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: underline;
+        }}
+        .modal {{
+            display: none;
+            position: fixed;
+            z-index: 999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.75);
+        }}
+        .modal-content {{
+            background-color: #0d1117;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 1100px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }}
+        .modal-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #c9d1d9;
+            margin-bottom: 10px;
+        }}
+        .modal-close {{
+            color: #c9d1d9;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+        }}
+        #chart {{
+            width: 100%;
+            height: 520px;
+        }}
     </style>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -205,6 +254,75 @@ def gerar_html(relatorios_por_carteira):
             <p>SMA17: Media Movel de 17 periodos | SMA72: Media Movel de 72 periodos</p>
         </div>
     </div>
+    <div id="chartModal" class="modal" onclick="closeChart(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="chartTitle">Grafico</h3>
+                <button class="modal-close" onclick="closeChart()">&times;</button>
+            </div>
+            <div id="chart"></div>
+        </div>
+    </div>
+    <script>
+        const chartsData = {json.dumps(charts_data, ensure_ascii=False)};
+
+        function openChart(ativo) {{
+            const data = chartsData[ativo];
+            if (!data) return;
+
+            document.getElementById('chartTitle').textContent = `TradingView Style - ${'{'}ativo{'}'}`;
+            document.getElementById('chartModal').style.display = 'block';
+
+            const closeTrace = {{
+                x: data.dates,
+                y: data.close,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Preço',
+                line: {{ color: '#2dd4bf', width: 2 }}
+            }};
+            const sma17Trace = {{
+                x: data.dates,
+                y: data.sma17,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'SMA17',
+                line: {{ color: '#f59e0b', width: 1.5 }}
+            }};
+            const sma72Trace = {{
+                x: data.dates,
+                y: data.sma72,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'SMA72',
+                line: {{ color: '#ef4444', width: 1.5 }}
+            }};
+
+            const layout = {{
+                paper_bgcolor: '#0d1117',
+                plot_bgcolor: '#0d1117',
+                font: {{ color: '#c9d1d9' }},
+                xaxis: {{
+                    showgrid: true,
+                    gridcolor: '#1f2937',
+                    rangeslider: {{ visible: false }}
+                }},
+                yaxis: {{
+                    showgrid: true,
+                    gridcolor: '#1f2937'
+                }},
+                legend: {{ orientation: 'h', y: -0.2 }},
+                margin: {{ t: 30, r: 20, b: 60, l: 50 }}
+            }};
+
+            Plotly.newPlot('chart', [closeTrace, sma17Trace, sma72Trace], layout, {{ displayModeBar: false }});
+        }}
+
+        function closeChart(event) {{
+            document.getElementById('chartModal').style.display = 'none';
+            Plotly.purge('chart');
+        }}
+    </script>
 </body>
 </html>"""
     return html
@@ -213,7 +331,14 @@ def gerar_html(relatorios_por_carteira):
 def processar_diario():
     print(f"\n=== Iniciando Varredura de Fechamento: {datetime.now().strftime('%d/%m/%Y')} ===\n")
     relatorios_por_carteira = {carteira: [] for carteira in CARTEIRAS}
+    charts_data = {}
     sinais_finais = []
+
+    def _series(col_name, data_frame):
+        series = data_frame[col_name]
+        if isinstance(series, pd.DataFrame):
+            series = series.iloc[:, 0]
+        return series
 
     for carteira, ativos in CARTEIRAS.items():
         print(f"\n[*] Processando {carteira}...")
@@ -299,6 +424,17 @@ def processar_diario():
                     "Minimo (5y)": round(float(menor_preco), 2),
                     "Maximo (5y)": round(float(maior_preco), 2)
                 })
+                # Guardar dados para o grafico (ultimo 180 dias)
+                df_chart = df.tail(180).copy()
+                close_series = _series('Close', df_chart)
+                sma17_series = _series('SMA17', df_chart)
+                sma72_series = _series('SMA72', df_chart)
+                charts_data[ativo] = {
+                    "dates": [d.strftime('%Y-%m-%d') for d in df_chart.index],
+                    "close": [float(v) if not pd.isna(v) else None for v in close_series.tolist()],
+                    "sma17": [float(v) if not pd.isna(v) else None for v in sma17_series.tolist()],
+                    "sma72": [float(v) if not pd.isna(v) else None for v in sma72_series.tolist()]
+                }
                 print(f"  [OK] {ativo}: {status}")
                 
             except Exception as e:
@@ -315,7 +451,7 @@ def processar_diario():
             relatorios_df[carteira] = pd.DataFrame()
     
     # Gerar HTML
-    html = gerar_html(relatorios_df)
+    html = gerar_html(relatorios_df, charts_data)
     with open(CAMINHO_HTML, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"\n[OK] HTML atualizado: {CAMINHO_HTML}")
