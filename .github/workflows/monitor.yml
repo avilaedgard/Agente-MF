@@ -46,6 +46,9 @@ jobs:
       - name: Gerar relatório
         env:
           RUN_ONCE: "1"
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
         run: python monitor.py
 
       - name: Commitar HTML atualizado
