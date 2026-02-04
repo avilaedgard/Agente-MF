@@ -71,14 +71,14 @@ def gerar_html(relatorios_por_carteira, charts_data):
             # Criar HTML customizado para a tabela
             html_tabelas += "<table>\n<thead>\n<tr>"
             html_tabelas += "<th>Ativo</th><th>Abertura</th><th>Fechamento</th><th>Sinal</th>"
-            html_tabelas += "<th>SMA17</th><th>SMA50</th><th>Distancia</th><th>Ultimo Cruzamento</th>"
+            html_tabelas += "<th>SMA17</th><th>SMA72</th><th>Distancia</th><th>Ultimo Cruzamento</th>"
             html_tabelas += "<th>Minimo (5y)</th><th>Maximo (5y)</th>"
             html_tabelas += "</tr>\n</thead>\n<tbody>\n"
             
             for _, row in df_relatorio.iterrows():
                 sinal_class = "compra" if "COMPRA" in str(row['Sinal']) else "venda" if "VENDA" in str(row['Sinal']) else "neutro"
-                tooltip = "COMPRA: SMA17 esta acima de SMA50 (tendencia de alta)" if "COMPRA" in str(row['Sinal']) else \
-                          "VENDA: SMA17 esta abaixo de SMA50 (tendencia de baixa)" if "VENDA" in str(row['Sinal']) else \
+                tooltip = "COMPRA: SMA17 esta acima de SMA72 (tendencia de alta)" if "COMPRA" in str(row['Sinal']) else \
+                          "VENDA: SMA17 esta abaixo de SMA72 (tendencia de baixa)" if "VENDA" in str(row['Sinal']) else \
                           "NEUTRO: Medias estao no mesmo nivel"
                 
                 html_tabelas += f"<tr>"
@@ -87,7 +87,7 @@ def gerar_html(relatorios_por_carteira, charts_data):
                 html_tabelas += f"<td>R$ {row['Fechamento']:.2f}</td>"
                 html_tabelas += f"<td title='{tooltip}' class='{sinal_class}'>{row['Sinal']}</td>"
                 html_tabelas += f"<td>{row['SMA17']:.2f}</td>"
-                html_tabelas += f"<td>{row['SMA50']:.2f}</td>"
+                html_tabelas += f"<td>{row['SMA72']:.2f}</td>"
                 html_tabelas += f"<td>{row['Distancia']:.2f}</td>"
                 html_tabelas += f"<td>{row['Ultimo Cruzamento']}</td>"
                 html_tabelas += f"<td>R$ {row['Minimo (5y)']:.2f}</td>"
@@ -328,12 +328,12 @@ def gerar_html(relatorios_por_carteira, charts_data):
                 name: 'SMA17',
                 line: {{ color: '#f59e0b', width: 1.5 }}
             }};
-            const sma50Trace = {{
+            const sma72Trace = {{
                 x: data.dates,
-                y: data.sma50,
+                y: data.sma72,
                 type: 'scatter',
                 mode: 'lines',
-                name: 'SMA50',
+                name: 'SMA72',
                 line: {{ color: '#ef4444', width: 1.5 }}
             }};
 
@@ -354,7 +354,7 @@ def gerar_html(relatorios_por_carteira, charts_data):
                 margin: {{ t: 30, r: 20, b: 60, l: 50 }}
             }};
 
-            Plotly.newPlot('chart', [closeTrace, sma17Trace, sma50Trace], layout, {{ responsive: true }});
+            Plotly.newPlot('chart', [closeTrace, sma17Trace, sma72Trace], layout, {{ responsive: true }});
         }}
 
         function closeChart(event) {{
@@ -386,16 +386,16 @@ def processar_diario():
                 # Pega dados diários usando função com fallback
                 df = fetch_data(ativo)
                 
-                if df is None or len(df) < 50:
+                if df is None or len(df) < 72:
                     print(f"  [AVISO] {ativo}: Dados insuficientes")
                     continue
 
                 # Médias
                 df['SMA17'] = df['Close'].rolling(window=17).mean()
-                df['SMA50'] = df['Close'].rolling(window=50).mean()
+                df['SMA72'] = df['Close'].rolling(window=72).mean()
                 
                 # Encontrar o último cruzamento
-                df['Cruzamento'] = (df['SMA17'] > df['SMA50']).astype(int).diff()
+                df['Cruzamento'] = (df['SMA17'] > df['SMA72']).astype(int).diff()
                 cruzamentos = df[df['Cruzamento'] != 0]
                 
                 if len(cruzamentos) > 0:
@@ -412,9 +412,9 @@ def processar_diario():
 
                 # Últimos 2 dias para detectar o cruzamento no fechamento
                 sma17_penultima = df['SMA17'].iloc[-2]
-                sma50_penultima = df['SMA50'].iloc[-2]
+                sma72_penultima = df['SMA72'].iloc[-2]
                 sma17_ultima = df['SMA17'].iloc[-1]
-                sma50_ultima = df['SMA50'].iloc[-1]
+                sma72_ultima = df['SMA72'].iloc[-1]
                 fechamento_ultimo = df['Close'].iloc[-1]
                 abertura_ultima = df['Open'].iloc[-1]
                 menor_preco = df['Low'].min()
@@ -427,34 +427,34 @@ def processar_diario():
                     fechamento_ultimo = fechamento_ultimo.item()
                 if hasattr(sma17_ultima, 'item'):
                     sma17_ultima = sma17_ultima.item()
-                if hasattr(sma50_ultima, 'item'):
-                    sma50_ultima = sma50_ultima.item()
+                if hasattr(sma72_ultima, 'item'):
+                    sma72_ultima = sma72_ultima.item()
                 if hasattr(sma17_penultima, 'item'):
                     sma17_penultima = sma17_penultima.item()
-                if hasattr(sma50_penultima, 'item'):
-                    sma50_penultima = sma50_penultima.item()
+                if hasattr(sma72_penultima, 'item'):
+                    sma72_penultima = sma72_penultima.item()
                 if hasattr(menor_preco, 'item'):
                     menor_preco = menor_preco.item()
                 if hasattr(maior_preco, 'item'):
                     maior_preco = maior_preco.item()
 
-                if pd.isna([sma17_penultima, sma50_penultima, sma17_ultima, sma50_ultima]).any():
+                if pd.isna([sma17_penultima, sma72_penultima, sma17_ultima, sma72_ultima]).any():
                     continue
 
                 # Lógica baseada na posição das médias
-                if sma17_ultima > sma50_ultima:
+                if sma17_ultima > sma72_ultima:
                     status = "COMPRA"
-                elif sma17_ultima < sma50_ultima:
+                elif sma17_ultima < sma72_ultima:
                     status = "VENDA"
                 else:
                     status = "Neutro"
                 
                 # Detectar cruzamentos para alertas especiais
                 cruzamento = False
-                if sma17_penultima <= sma50_penultima and sma17_ultima > sma50_ultima:
+                if sma17_penultima <= sma72_penultima and sma17_ultima > sma72_ultima:
                     cruzamento = True
                     sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": "COMPRA (Cruzamento)", "Preco": round(fechamento_ultimo, 2)})
-                elif sma17_penultima >= sma50_penultima and sma17_ultima < sma50_ultima:
+                elif sma17_penultima >= sma72_penultima and sma17_ultima < sma72_ultima:
                     cruzamento = True
                     sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": "VENDA (Cruzamento)", "Preco": round(fechamento_ultimo, 2)})
 
@@ -464,8 +464,8 @@ def processar_diario():
                     "Fechamento": round(float(fechamento_ultimo), 2),
                     "Sinal": status,
                     "SMA17": round(float(sma17_ultima), 2),
-                    "SMA50": round(float(sma50_ultima), 2),
-                    "Distancia": round(abs(float(sma17_ultima) - float(sma50_ultima)), 2),
+                    "SMA72": round(float(sma72_ultima), 2),
+                    "Distancia": round(abs(float(sma17_ultima) - float(sma72_ultima)), 2),
                     "Ultimo Cruzamento": ultima_data_cruzamento,
                     "Minimo (5y)": round(float(menor_preco), 2),
                     "Maximo (5y)": round(float(maior_preco), 2)
@@ -475,12 +475,12 @@ def processar_diario():
                 df_chart = df[df.index >= data_inicio].copy()
                 close_series = _series('Close', df_chart)
                 sma17_series = _series('SMA17', df_chart)
-                sma50_series = _series('SMA50', df_chart)
+                sma72_series = _series('SMA72', df_chart)
                 charts_data[ativo] = {
                     "dates": [d.strftime('%Y-%m-%d') for d in df_chart.index],
                     "close": [float(v) if not pd.isna(v) else None for v in close_series.tolist()],
                     "sma17": [float(v) if not pd.isna(v) else None for v in sma17_series.tolist()],
-                    "sma50": [float(v) if not pd.isna(v) else None for v in sma50_series.tolist()]
+                    "sma72": [float(v) if not pd.isna(v) else None for v in sma72_series.tolist()]
                 }
                 print(f"  [OK] {ativo}: {status}")
                 
