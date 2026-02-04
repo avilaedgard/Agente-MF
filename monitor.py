@@ -3,7 +3,7 @@ import time
 import json
 import yfinance as yf
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import requests
 
 try:
@@ -61,8 +61,15 @@ toaster = ToastNotifier() if ToastNotifier else None
 HORARIO_EXECUCAO = "18:30"
 CAMINHO_HTML = "relatorio_monitor.html"
 
+# Fuso horário do Brasil (GMT-3)
+BRT = timezone(timedelta(hours=-3))
+
+def agora_brt():
+    """Retorna datetime atual no fuso horário de Brasília (BRT/GMT-3)"""
+    return datetime.now(BRT)
+
 def gerar_html(relatorios_por_carteira, charts_data):
-    titulo = f"Relatório de Médias Móveis - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    titulo = f"Relatório de Médias Móveis - {agora_brt().strftime('%d/%m/%Y %H:%M')}"
     html_tabelas = ""
     
     for carteira, df_relatorio in relatorios_por_carteira.items():
@@ -368,7 +375,7 @@ def gerar_html(relatorios_por_carteira, charts_data):
 
 
 def processar_diario():
-    print(f"\n=== Iniciando Varredura de Fechamento: {datetime.now().strftime('%d/%m/%Y')} ===\n")
+    print(f"\n=== Iniciando Varredura de Fechamento: {agora_brt().strftime('%d/%m/%Y')} ===\n")
     relatorios_por_carteira = {carteira: [] for carteira in CARTEIRAS}
     charts_data = {}
     sinais_finais = []
@@ -521,7 +528,7 @@ def processar_diario():
 def loop_diario():
     ultima_execucao = None
     while True:
-        agora = datetime.now()
+        agora = agora_brt()
         horario_atual = agora.strftime("%H:%M")
         data_atual = agora.date()
 
