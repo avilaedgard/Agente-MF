@@ -230,14 +230,32 @@ def processar_diario():
                 df['SMA72'] = df['Close'].rolling(window=72).mean()
 
                 # Últimos 2 dias para detectar o cruzamento no fechamento
-                sma17_penultima = float(df['SMA17'].iloc[-2])
-                sma72_penultima = float(df['SMA72'].iloc[-2])
-                sma17_ultima = float(df['SMA17'].iloc[-1])
-                sma72_ultima = float(df['SMA72'].iloc[-1])
-                fechamento_ultimo = float(df['Close'].iloc[-1])
-                abertura_ultima = float(df['Open'].iloc[-1])
-                menor_preco = float(df['Low'].min())
-                maior_preco = float(df['High'].max())
+                sma17_penultima = df['SMA17'].iloc[-2]
+                sma72_penultima = df['SMA72'].iloc[-2]
+                sma17_ultima = df['SMA17'].iloc[-1]
+                sma72_ultima = df['SMA72'].iloc[-1]
+                fechamento_ultimo = df['Close'].iloc[-1]
+                abertura_ultima = df['Open'].iloc[-1]
+                menor_preco = df['Low'].min()
+                maior_preco = df['High'].max()
+                
+                # Converter para float se necessário
+                if hasattr(abertura_ultima, 'item'):
+                    abertura_ultima = abertura_ultima.item()
+                if hasattr(fechamento_ultimo, 'item'):
+                    fechamento_ultimo = fechamento_ultimo.item()
+                if hasattr(sma17_ultima, 'item'):
+                    sma17_ultima = sma17_ultima.item()
+                if hasattr(sma72_ultima, 'item'):
+                    sma72_ultima = sma72_ultima.item()
+                if hasattr(sma17_penultima, 'item'):
+                    sma17_penultima = sma17_penultima.item()
+                if hasattr(sma72_penultima, 'item'):
+                    sma72_penultima = sma72_penultima.item()
+                if hasattr(menor_preco, 'item'):
+                    menor_preco = menor_preco.item()
+                if hasattr(maior_preco, 'item'):
+                    maior_preco = maior_preco.item()
 
                 if pd.isna([sma17_penultima, sma72_penultima, sma17_ultima, sma72_ultima]).any():
                     continue
