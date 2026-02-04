@@ -21,74 +21,39 @@ COMMODITY_SYMBOLS = {
 }
 
 def fetch_commodity_data(symbol, period="5y"):
-    """Busca dados de commodities via Alpha Vantage"""
-    commodity_map = {
-        "GC=F": "GOLD",
-        "SI=F": "SILVER"
-    }
-    
-    if symbol not in commodity_map:
-        return None
-    
-    try:
-        commodity_type = commodity_map[symbol]
-        url = f"https://www.alphavantage.co/query"
-        params = {
-            "function": f"{commodity_type}",
-            "interval": "daily",
-            "apikey": ALPHA_VANTAGE_KEY
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        data = response.json()
-        
-        if "data" not in data or len(data["data"]) == 0:
-            return None
-        
-        # Converter dados do Alpha Vantage para DataFrame similar ao yfinance
-        df_list = []
-        for entry in data["data"]:
-            df_list.append({
-                "Date": pd.to_datetime(entry["date"]),
-                "Close": float(entry["value"]),
-                "Open": float(entry["value"]),
-                "High": float(entry["value"]),
-                "Low": float(entry["value"]),
-                "Volume": 0
-            })
-        
-        df = pd.DataFrame(df_list)
-        df.set_index("Date", inplace=True)
-        df = df.sort_index()
-        
-        return df
-        
-    except Exception as e:
-        print(f"  [AVISO] Alpha Vantage error para {symbol}: {str(e)}")
-        return None
+    """Busca dados de commodities - não mais necessário, YFinance trata direto"""
+    return None
+
 
 def fetch_data(ativo):
-    """Tenta buscar dados do Yahoo Finance, senão tenta Alpha Vantage"""
+    """Tenta buscar dados do Yahoo Finance"""
+    # Remapear GOLD e SILVER para os ETFs GLD e SLV
+    symbol_map = {
+        "GOLD": "GLD",  # SPDR Gold Trust ETF
+        "SILVER": "SLV"  # iShares Silver Trust ETF
+    }
+    
+    # Usar o mapa se necessário
+    ticker = symbol_map.get(ativo, ativo)
+    
     try:
-        # Tenta Yahoo Finance primeiro
-        df = yf.download(ativo, period="5y", interval="1d", progress=False)
+        # Yahoo Finance para ações/ETFs
+        df = yf.download(ticker, period="5y", interval="1d", progress=False)
         if df is not None and len(df) > 0:
             return df
     except:
         pass
     
-    # Tenta Alpha Vantage para commodities
-    df_commodity = fetch_commodity_data(ativo)
-    if df_commodity is not None and len(df_commodity) > 0:
-        return df_commodity
+    return None
     
+    # Se nada funcionou, retorna None
     return None
 
 # Configurações
 CARTEIRAS = {
     "Carteira Ações": ["ITSA4.SA", "NEOE3.SA", "BBDC4.SA", "LREN3.SA", "RDOR3.SA", "GOAU4.SA", "KLBN4.SA", "EGIE3.SA", "RECV3.SA", "JHSF3.SA"],
     "Carteira ETF": ["IVVB11.SA", "GOLD11.SA", "DIVO11.SA", "HASH11.SA"],
-    "Watchlist": ["VALE3.SA", "PETR3.SA", "BTC-USD", "GC=F", "SI=F"],
+    "Watchlist": ["VALE3.SA", "PETR3.SA", "BTC-USD", "GOLD", "SILVER"],  # GOLD->GLD, SILVER->SLV (ETFs via YFinance)
     "Especulação": ["CEAB3.SA", "S1BS34.SA"]
 }
 
@@ -106,14 +71,14 @@ def gerar_html(relatorios_por_carteira, charts_data):
             # Criar HTML customizado para a tabela
             html_tabelas += "<table>\n<thead>\n<tr>"
             html_tabelas += "<th>Ativo</th><th>Abertura</th><th>Fechamento</th><th>Sinal</th>"
-            html_tabelas += "<th>SMA17</th><th>SMA72</th><th>Distancia</th><th>Ultimo Cruzamento</th>"
+            html_tabelas += "<th>SMA17</th><th>SMA50</th><th>Distancia</th><th>Ultimo Cruzamento</th>"
             html_tabelas += "<th>Minimo (5y)</th><th>Maximo (5y)</th>"
             html_tabelas += "</tr>\n</thead>\n<tbody>\n"
             
             for _, row in df_relatorio.iterrows():
                 sinal_class = "compra" if "COMPRA" in str(row['Sinal']) else "venda" if "VENDA" in str(row['Sinal']) else "neutro"
-                tooltip = "COMPRA: SMA17 esta acima de SMA72 (tendencia de alta)" if "COMPRA" in str(row['Sinal']) else \
-                          "VENDA: SMA17 esta abaixo de SMA72 (tendencia de baixa)" if "VENDA" in str(row['Sinal']) else \
+                tooltip = "COMPRA: SMA17 esta acima de SMA50 (tendencia de alta)" if "COMPRA" in str(row['Sinal']) else \
+                          "VENDA: SMA17 esta abaixo de SMA50 (tendencia de baixa)" if "VENDA" in str(row['Sinal']) else \
                           "NEUTRO: Medias estao no mesmo nivel"
                 
                 html_tabelas += f"<tr>"
@@ -122,7 +87,7 @@ def gerar_html(relatorios_por_carteira, charts_data):
                 html_tabelas += f"<td>R$ {row['Fechamento']:.2f}</td>"
                 html_tabelas += f"<td title='{tooltip}' class='{sinal_class}'>{row['Sinal']}</td>"
                 html_tabelas += f"<td>{row['SMA17']:.2f}</td>"
-                html_tabelas += f"<td>{row['SMA72']:.2f}</td>"
+                html_tabelas += f"<td>{row['SMA50']:.2f}</td>"
                 html_tabelas += f"<td>{row['Distancia']:.2f}</td>"
                 html_tabelas += f"<td>{row['Ultimo Cruzamento']}</td>"
                 html_tabelas += f"<td>R$ {row['Minimo (5y)']:.2f}</td>"
@@ -325,7 +290,7 @@ def gerar_html(relatorios_por_carteira, charts_data):
         {html_tabelas if html_tabelas.strip() else '<p style="text-align: center; color: #7f8c8d;">Nenhum dado disponivel no momento.</p>'}
         <div class="footer">
             <p>Atualizado automaticamente todos os dias as 18:30 BRT</p>
-            <p>SMA17: Media Movel de 17 periodos | SMA72: Media Movel de 72 periodos</p>
+            <p>SMA17: Media Movel de 17 periodos | SMA50: Media Movel de 50 periodos</p>
         </div>
     </div>
     <div id="chartModal" class="modal" onclick="closeChart(event)">
@@ -363,12 +328,12 @@ def gerar_html(relatorios_por_carteira, charts_data):
                 name: 'SMA17',
                 line: {{ color: '#f59e0b', width: 1.5 }}
             }};
-            const sma72Trace = {{
+            const sma50Trace = {{
                 x: data.dates,
-                y: data.sma72,
+                y: data.sma50,
                 type: 'scatter',
                 mode: 'lines',
-                name: 'SMA72',
+                name: 'SMA50',
                 line: {{ color: '#ef4444', width: 1.5 }}
             }};
 
@@ -389,7 +354,7 @@ def gerar_html(relatorios_por_carteira, charts_data):
                 margin: {{ t: 30, r: 20, b: 60, l: 50 }}
             }};
 
-            Plotly.newPlot('chart', [closeTrace, sma17Trace, sma72Trace], layout, {{ displayModeBar: false }});
+            Plotly.newPlot('chart', [closeTrace, sma17Trace, sma50Trace], layout, {{ responsive: true }});
         }}
 
         function closeChart(event) {{
@@ -421,16 +386,16 @@ def processar_diario():
                 # Pega dados diários usando função com fallback
                 df = fetch_data(ativo)
                 
-                if df is None or len(df) < 72:
+                if df is None or len(df) < 50:
                     print(f"  [AVISO] {ativo}: Dados insuficientes")
                     continue
 
                 # Médias
                 df['SMA17'] = df['Close'].rolling(window=17).mean()
-                df['SMA72'] = df['Close'].rolling(window=72).mean()
+                df['SMA50'] = df['Close'].rolling(window=50).mean()
                 
                 # Encontrar o último cruzamento
-                df['Cruzamento'] = (df['SMA17'] > df['SMA72']).astype(int).diff()
+                df['Cruzamento'] = (df['SMA17'] > df['SMA50']).astype(int).diff()
                 cruzamentos = df[df['Cruzamento'] != 0]
                 
                 if len(cruzamentos) > 0:
@@ -447,9 +412,9 @@ def processar_diario():
 
                 # Últimos 2 dias para detectar o cruzamento no fechamento
                 sma17_penultima = df['SMA17'].iloc[-2]
-                sma72_penultima = df['SMA72'].iloc[-2]
+                sma50_penultima = df['SMA50'].iloc[-2]
                 sma17_ultima = df['SMA17'].iloc[-1]
-                sma72_ultima = df['SMA72'].iloc[-1]
+                sma50_ultima = df['SMA50'].iloc[-1]
                 fechamento_ultimo = df['Close'].iloc[-1]
                 abertura_ultima = df['Open'].iloc[-1]
                 menor_preco = df['Low'].min()
@@ -462,34 +427,34 @@ def processar_diario():
                     fechamento_ultimo = fechamento_ultimo.item()
                 if hasattr(sma17_ultima, 'item'):
                     sma17_ultima = sma17_ultima.item()
-                if hasattr(sma72_ultima, 'item'):
-                    sma72_ultima = sma72_ultima.item()
+                if hasattr(sma50_ultima, 'item'):
+                    sma50_ultima = sma50_ultima.item()
                 if hasattr(sma17_penultima, 'item'):
                     sma17_penultima = sma17_penultima.item()
-                if hasattr(sma72_penultima, 'item'):
-                    sma72_penultima = sma72_penultima.item()
+                if hasattr(sma50_penultima, 'item'):
+                    sma50_penultima = sma50_penultima.item()
                 if hasattr(menor_preco, 'item'):
                     menor_preco = menor_preco.item()
                 if hasattr(maior_preco, 'item'):
                     maior_preco = maior_preco.item()
 
-                if pd.isna([sma17_penultima, sma72_penultima, sma17_ultima, sma72_ultima]).any():
+                if pd.isna([sma17_penultima, sma50_penultima, sma17_ultima, sma50_ultima]).any():
                     continue
 
                 # Lógica baseada na posição das médias
-                if sma17_ultima > sma72_ultima:
+                if sma17_ultima > sma50_ultima:
                     status = "COMPRA"
-                elif sma17_ultima < sma72_ultima:
+                elif sma17_ultima < sma50_ultima:
                     status = "VENDA"
                 else:
                     status = "Neutro"
                 
                 # Detectar cruzamentos para alertas especiais
                 cruzamento = False
-                if sma17_penultima <= sma72_penultima and sma17_ultima > sma72_ultima:
+                if sma17_penultima <= sma50_penultima and sma17_ultima > sma50_ultima:
                     cruzamento = True
                     sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": "COMPRA (Cruzamento)", "Preco": round(fechamento_ultimo, 2)})
-                elif sma17_penultima >= sma72_penultima and sma17_ultima < sma72_ultima:
+                elif sma17_penultima >= sma50_penultima and sma17_ultima < sma50_ultima:
                     cruzamento = True
                     sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": "VENDA (Cruzamento)", "Preco": round(fechamento_ultimo, 2)})
 
@@ -499,8 +464,8 @@ def processar_diario():
                     "Fechamento": round(float(fechamento_ultimo), 2),
                     "Sinal": status,
                     "SMA17": round(float(sma17_ultima), 2),
-                    "SMA72": round(float(sma72_ultima), 2),
-                    "Distancia": round(abs(float(sma17_ultima) - float(sma72_ultima)), 2),
+                    "SMA50": round(float(sma50_ultima), 2),
+                    "Distancia": round(abs(float(sma17_ultima) - float(sma50_ultima)), 2),
                     "Ultimo Cruzamento": ultima_data_cruzamento,
                     "Minimo (5y)": round(float(menor_preco), 2),
                     "Maximo (5y)": round(float(maior_preco), 2)
@@ -510,12 +475,12 @@ def processar_diario():
                 df_chart = df[df.index >= data_inicio].copy()
                 close_series = _series('Close', df_chart)
                 sma17_series = _series('SMA17', df_chart)
-                sma72_series = _series('SMA72', df_chart)
+                sma50_series = _series('SMA50', df_chart)
                 charts_data[ativo] = {
                     "dates": [d.strftime('%Y-%m-%d') for d in df_chart.index],
                     "close": [float(v) if not pd.isna(v) else None for v in close_series.tolist()],
                     "sma17": [float(v) if not pd.isna(v) else None for v in sma17_series.tolist()],
-                    "sma72": [float(v) if not pd.isna(v) else None for v in sma72_series.tolist()]
+                    "sma50": [float(v) if not pd.isna(v) else None for v in sma50_series.tolist()]
                 }
                 print(f"  [OK] {ativo}: {status}")
                 
