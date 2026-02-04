@@ -1,127 +1,64 @@
 
-        <html>
-            <head>
-                <meta charset="utf-8">
-                <style>
-                    body { font-family: Arial, sans-serif; padding: 16px; }
-                    h2 { margin-bottom: 12px; }
-                    table { border-collapse: collapse; width: 100%; }
-                    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-                    th { background: #f2f2f2; }
-                </style>
-            </head>
-            <body>
-                <h2>Relatório de Médias Móveis - 03/02/2026</h2>
-                <table class="dataframe">
-  <thead>
-    <tr style="text-align: center;">
-      <th>Ativo</th>
-      <th>Abertura</th>
-      <th>Fechamento</th>
-      <th>Sinal</th>
-      <th>Menor (5y)</th>
-      <th>Maior (5y)</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>PETR4.SA</td>
-      <td>Ticker
-PETR4.SA&nbsp;&nbsp;&nbsp;&nbsp;37.51
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Ticker
-PETR4.SA&nbsp;&nbsp;&nbsp;&nbsp;37.58
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Neutro</td>
-      <td>Ticker
-PETR4.SA&nbsp;&nbsp;&nbsp;&nbsp;5.88
-dtype: float64</td>
-      <td>Ticker
-PETR4.SA&nbsp;&nbsp;&nbsp;&nbsp;38.58
-dtype: float64</td>
-    </tr>
-    <tr>
-      <td>VALE3.SA</td>
-      <td>Ticker
-VALE3.SA&nbsp;&nbsp;&nbsp;&nbsp;86.42
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Ticker
-VALE3.SA&nbsp;&nbsp;&nbsp;&nbsp;88.99
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Neutro</td>
-      <td>Ticker
-VALE3.SA&nbsp;&nbsp;&nbsp;&nbsp;42.05
-dtype: float64</td>
-      <td>Ticker
-VALE3.SA&nbsp;&nbsp;&nbsp;&nbsp;89.5
-dtype: float64</td>
-    </tr>
-    <tr>
-      <td>IVVB11.SA</td>
-      <td>Ticker
-IVVB11.SA&nbsp;&nbsp;&nbsp;&nbsp;412.2
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Ticker
-IVVB11.SA&nbsp;&nbsp;&nbsp;&nbsp;407.85
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Neutro</td>
-      <td>Ticker
-IVVB11.SA&nbsp;&nbsp;&nbsp;&nbsp;203.03
-dtype: float64</td>
-      <td>Ticker
-IVVB11.SA&nbsp;&nbsp;&nbsp;&nbsp;433.61
-dtype: float64</td>
-    </tr>
-    <tr>
-      <td>HGLG11.SA</td>
-      <td>Ticker
-HGLG11.SA&nbsp;&nbsp;&nbsp;&nbsp;157.0
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Ticker
-HGLG11.SA&nbsp;&nbsp;&nbsp;&nbsp;157.11
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Neutro</td>
-      <td>Ticker
-HGLG11.SA&nbsp;&nbsp;&nbsp;&nbsp;108.57
-dtype: float64</td>
-      <td>Ticker
-HGLG11.SA&nbsp;&nbsp;&nbsp;&nbsp;160.86
-dtype: float64</td>
-    </tr>
-    <tr>
-      <td>BBDC4.SA</td>
-      <td>Ticker
-BBDC4.SA&nbsp;&nbsp;&nbsp;&nbsp;21.8
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Ticker
-BBDC4.SA&nbsp;&nbsp;&nbsp;&nbsp;21.68
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Neutro</td>
-      <td>Ticker
-BBDC4.SA&nbsp;&nbsp;&nbsp;&nbsp;9.72
-dtype: float64</td>
-      <td>Ticker
-BBDC4.SA&nbsp;&nbsp;&nbsp;&nbsp;22.12
-dtype: float64</td>
-    </tr>
-    <tr>
-      <td>ITUB4.SA</td>
-      <td>Ticker
-ITUB4.SA&nbsp;&nbsp;&nbsp;&nbsp;46.3
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Ticker
-ITUB4.SA&nbsp;&nbsp;&nbsp;&nbsp;46.14
-Name: 2026-02-03 00:00:00, dtype: float64</td>
-      <td>Neutro</td>
-      <td>Ticker
-ITUB4.SA&nbsp;&nbsp;&nbsp;&nbsp;13.89
-dtype: float64</td>
-      <td>Ticker
-ITUB4.SA&nbsp;&nbsp;&nbsp;&nbsp;47.03
-dtype: float64</td>
-    </tr>
-  </tbody>
-</table>
-            </body>
-        </html>
-        
+    <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    padding: 20px; 
+                    background-color: #f9f9f9;
+                }
+                h2 { 
+                    margin-bottom: 20px;
+                    color: #333;
+                    border-bottom: 3px solid #0366d6;
+                    padding-bottom: 10px;
+                }
+                h3 {
+                    margin-top: 25px;
+                    color: #555;
+                    background-color: #e8f0f7;
+                    padding: 10px;
+                    border-radius: 5px;
+                }
+                table { 
+                    border-collapse: collapse; 
+                    width: 100%; 
+                    margin-bottom: 15px;
+                    background-color: white;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                    border-radius: 5px;
+                    overflow: hidden;
+                }
+                th, td { 
+                    border: 1px solid #ddd; 
+                    padding: 12px; 
+                    text-align: center;
+                }
+                th { 
+                    background: #0366d6;
+                    color: white;
+                    font-weight: bold;
+                }
+                tr:nth-child(even) {
+                    background-color: #f5f5f5;
+                }
+                tr:hover {
+                    background-color: #fffacd;
+                }
+                .compra {
+                    background-color: #90EE90;
+                    font-weight: bold;
+                }
+                .venda {
+                    background-color: #FFB6C6;
+                    font-weight: bold;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Relatório de Médias Móveis - 04/02/2026</h2>
+            <p>Nenhum dado disponível no momento.</p>
+        </body>
+    </html>
+    
