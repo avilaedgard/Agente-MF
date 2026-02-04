@@ -31,7 +31,7 @@ def gerar_html(relatorios_por_carteira):
             # Criar HTML customizado para a tabela
             html_tabelas += "<table>\n<thead>\n<tr>"
             html_tabelas += "<th>Ativo</th><th>Abertura</th><th>Fechamento</th><th>Sinal</th>"
-            html_tabelas += "<th>SMA17</th><th>SMA72</th><th>Distancia</th>"
+            html_tabelas += "<th>SMA17</th><th>SMA72</th><th>Distancia</th><th>Ultimo Cruzamento</th>"
             html_tabelas += "<th>Minimo (5y)</th><th>Maximo (5y)</th>"
             html_tabelas += "</tr>\n</thead>\n<tbody>\n"
             
@@ -49,6 +49,7 @@ def gerar_html(relatorios_por_carteira):
                 html_tabelas += f"<td>{row['SMA17']:.2f}</td>"
                 html_tabelas += f"<td>{row['SMA72']:.2f}</td>"
                 html_tabelas += f"<td>{row['Distancia']:.2f}</td>"
+                html_tabelas += f"<td>{row['Ultimo Cruzamento']}</td>"
                 html_tabelas += f"<td>R$ {row['Minimo (5y)']:.2f}</td>"
                 html_tabelas += f"<td>R$ {row['Maximo (5y)']:.2f}</td>"
                 html_tabelas += f"</tr>\n"
@@ -228,6 +229,15 @@ def processar_diario():
                 # Médias
                 df['SMA17'] = df['Close'].rolling(window=17).mean()
                 df['SMA72'] = df['Close'].rolling(window=72).mean()
+                
+                # Encontrar o último cruzamento
+                df['Cruzamento'] = (df['SMA17'] > df['SMA72']).astype(int).diff()
+                cruzamentos = df[df['Cruzamento'] != 0]
+                
+                if len(cruzamentos) > 0:
+                    ultima_data_cruzamento = cruzamentos.index[-1].strftime('%d/%m/%Y')
+                else:
+                    ultima_data_cruzamento = "Sem dados"
 
                 # Últimos 2 dias para detectar o cruzamento no fechamento
                 sma17_penultima = df['SMA17'].iloc[-2]
@@ -285,6 +295,7 @@ def processar_diario():
                     "SMA17": round(float(sma17_ultima), 2),
                     "SMA72": round(float(sma72_ultima), 2),
                     "Distancia": round(abs(float(sma17_ultima) - float(sma72_ultima)), 2),
+                    "Ultimo Cruzamento": ultima_data_cruzamento,
                     "Minimo (5y)": round(float(menor_preco), 2),
                     "Maximo (5y)": round(float(maior_preco), 2)
                 })
