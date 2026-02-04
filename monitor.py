@@ -4,11 +4,85 @@ import json
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+import requests
 
 try:
     from win10toast import ToastNotifier
 except Exception:
     ToastNotifier = None
+
+# Alpha Vantage API key (substitua pela sua chave)
+ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "demo")
+
+# Mapeamento de commodities para Alpha Vantage
+COMMODITY_SYMBOLS = {
+    "GC=F": "GLD",  # Ouro
+    "SI=F": "SLV",  # Prata
+}
+
+def fetch_commodity_data(symbol, period="5y"):
+    """Busca dados de commodities via Alpha Vantage"""
+    commodity_map = {
+        "GC=F": "GOLD",
+        "SI=F": "SILVER"
+    }
+    
+    if symbol not in commodity_map:
+        return None
+    
+    try:
+        commodity_type = commodity_map[symbol]
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": f"{commodity_type}",
+            "interval": "daily",
+            "apikey": ALPHA_VANTAGE_KEY
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        data = response.json()
+        
+        if "data" not in data or len(data["data"]) == 0:
+            return None
+        
+        # Converter dados do Alpha Vantage para DataFrame similar ao yfinance
+        df_list = []
+        for entry in data["data"]:
+            df_list.append({
+                "Date": pd.to_datetime(entry["date"]),
+                "Close": float(entry["value"]),
+                "Open": float(entry["value"]),
+                "High": float(entry["value"]),
+                "Low": float(entry["value"]),
+                "Volume": 0
+            })
+        
+        df = pd.DataFrame(df_list)
+        df.set_index("Date", inplace=True)
+        df = df.sort_index()
+        
+        return df
+        
+    except Exception as e:
+        print(f"  [AVISO] Alpha Vantage error para {symbol}: {str(e)}")
+        return None
+
+def fetch_data(ativo):
+    """Tenta buscar dados do Yahoo Finance, senão tenta Alpha Vantage"""
+    try:
+        # Tenta Yahoo Finance primeiro
+        df = yf.download(ativo, period="5y", interval="1d", progress=False)
+        if df is not None and len(df) > 0:
+            return df
+    except:
+        pass
+    
+    # Tenta Alpha Vantage para commodities
+    df_commodity = fetch_commodity_data(ativo)
+    if df_commodity is not None and len(df_commodity) > 0:
+        return df_commodity
+    
+    return None
 
 # Configurações
 CARTEIRAS = {
@@ -344,10 +418,10 @@ def processar_diario():
         print(f"\n[*] Processando {carteira}...")
         for ativo in ativos:
             try:
-                # Pega dados diários (1d)
-                df = yf.download(ativo, period="5y", interval="1d", progress=False)
+                # Pega dados diários usando função com fallback
+                df = fetch_data(ativo)
                 
-                if len(df) < 72:
+                if df is None or len(df) < 72:
                     print(f"  [AVISO] {ativo}: Dados insuficientes")
                     continue
 
