@@ -3,7 +3,13 @@ name: Atualizar HTML do Monitor
 on:
   schedule:
     - cron: "30 21 * * *" # 18:30 BRT (UTC-3)
-  workflow_dispatch:
+  workflow_dispatch: # Permite execução manual
+  push:
+    branches:
+      - main
+    paths:
+      - 'monitor.py'
+      - '.github/workflows/monitor.yml'
 
 permissions:
   contents: write
