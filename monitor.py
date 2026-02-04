@@ -5,6 +5,9 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 import requests
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 try:
     from win10toast import ToastNotifier
@@ -67,6 +70,58 @@ BRT = timezone(timedelta(hours=-3))
 def agora_brt():
     """Retorna datetime atual no fuso horário de Brasília (BRT/GMT-3)"""
     return datetime.now(BRT)
+
+# Configurações de Email
+EMAIL_SENDER = os.getenv("EMAIL_SENDER", "edgard.1706@gmail.com")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "rrgf jdll hoht dock")
+EMAIL_RECIPIENT = os.getenv("EMAIL_RECIPIENT", "edgard.1706@gmail.com")
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+
+def enviar_email_alerta(sinais_finais):
+    """Envia notificação de cruzamento via email"""
+    try:
+        # Preparar mensagem
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_SENDER
+        msg['To'] = EMAIL_RECIPIENT
+        msg['Subject'] = f"[ALERTA] Cruzamento de Médias Móveis - {agora_brt().strftime('%d/%m/%Y %H:%M')}"
+        
+        # Corpo do email em HTML
+        corpo = "<html><body>"
+        corpo += "<h2>Alerta de Cruzamento de Médias Móveis</h2>"
+        corpo += f"<p><strong>Data/Hora:</strong> {agora_brt().strftime('%d/%m/%Y %H:%M:%S BRT')}</p>"
+        corpo += "<table border='1' cellpadding='10'>"
+        corpo += "<tr><th>Ativo</th><th>Carteira</th><th>Sinal</th><th>Preço</th><th>Data do Cruzamento</th></tr>"
+        
+        for item in sinais_finais:
+            cor = "#28a745" if "COMPRA" in item['Sinal'] else "#dc3545"
+            corpo += f"<tr style='background-color: {cor}; color: white;'>"
+            corpo += f"<td>{item['Ativo']}</td>"
+            corpo += f"<td>{item['Carteira']}</td>"
+            corpo += f"<td><strong>{item['Sinal']}</strong></td>"
+            corpo += f"<td>R$ {item['Preco']}</td>"
+            corpo += f"<td>{item.get('Data', 'N/A')}</td>"
+            corpo += "</tr>"
+        
+        corpo += "</table>"
+        corpo += "<br><p><em>Relatório completo disponível em: https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html</em></p>"
+        corpo += "</body></html>"
+        
+        msg.attach(MIMEText(corpo, 'html'))
+        
+        # Enviar email
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.send_message(msg)
+        
+        print(f"  [EMAIL] Alerta enviado com sucesso para {EMAIL_RECIPIENT}")
+        return True
+        
+    except Exception as e:
+        print(f"  [ERRO] Falha ao enviar email: {str(e)}")
+        return False
 
 def gerar_html(relatorios_por_carteira, charts_data):
     titulo = f"Relatório de Médias Móveis - {agora_brt().strftime('%d/%m/%Y %H:%M')}"
@@ -456,14 +511,44 @@ def processar_diario():
                 else:
                     status = "Neutro"
                 
-                # Detectar cruzamentos para alertas especiais
-                cruzamento = False
-                if sma17_penultima <= sma72_penultima and sma17_ultima > sma72_ultima:
-                    cruzamento = True
-                    sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": "COMPRA (Cruzamento)", "Preco": round(fechamento_ultimo, 2)})
-                elif sma17_penultima >= sma72_penultima and sma17_ultima < sma72_ultima:
-                    cruzamento = True
-                    sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": "VENDA (Cruzamento)", "Preco": round(fechamento_ultimo, 2)})
+                # Detectar cruzamentos nos últimos 14 dias para alertas
+                from datetime import timedelta
+                data_limite = agora_brt().date() - timedelta(days=14)
+                
+                # Iterar por todos os dias nos últimos 14 dias
+                for i in range(len(df)-1, 1, -1):
+                    data_candle = df.index[i].date()
+                    if data_candle < data_limite:
+                        break
+                    
+                    sma17_anterior = df['SMA17'].iloc[i-1]
+                    sma72_anterior = df['SMA72'].iloc[i-1]
+                    sma17_atual = df['SMA17'].iloc[i]
+                    sma72_atual = df['SMA72'].iloc[i]
+                    
+                    if pd.isna([sma17_anterior, sma72_anterior, sma17_atual, sma72_atual]).any():
+                        continue
+                    
+                    # Cruzamento de COMPRA (SMA17 cruza acima de SMA72)
+                    if sma17_anterior <= sma72_anterior and sma17_atual > sma72_atual:
+                        data_cruzamento = df.index[i].strftime('%d/%m/%Y %H:%M')
+                        sinais_finais.append({
+                            "Carteira": carteira,
+                            "Ativo": ativo,
+                            "Sinal": "COMPRA (Cruzamento)",
+                            "Preco": round(fechamento_ultimo, 2),
+                            "Data": data_cruzamento
+                        })
+                    # Cruzamento de VENDA (SMA17 cruza abaixo de SMA72)
+                    elif sma17_anterior >= sma72_anterior and sma17_atual < sma72_atual:
+                        data_cruzamento = df.index[i].strftime('%d/%m/%Y %H:%M')
+                        sinais_finais.append({
+                            "Carteira": carteira,
+                            "Ativo": ativo,
+                            "Sinal": "VENDA (Cruzamento)",
+                            "Preco": round(fechamento_ultimo, 2),
+                            "Data": data_cruzamento
+                        })
 
                 relatorios_por_carteira[carteira].append({
                     "Ativo": ativo,
@@ -521,6 +606,9 @@ def processar_diario():
             toaster.show_toast("Alerta de Medias Moveis", 
                                mensagem,
                                duration=10)
+        
+        # Envia alerta por email
+        enviar_email_alerta(sinais_finais)
     else:
         print("\n[OK] Nenhum cruzamento de media detectado nos ativos selecionados hoje.")
 
