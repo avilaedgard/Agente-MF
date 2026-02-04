@@ -26,9 +26,13 @@ def gerar_html(relatorios_por_carteira):
     html_tabelas = ""
     
     for carteira, df_relatorio in relatorios_por_carteira.items():
+        html_tabelas += f"<h3>{carteira}</h3>\n"
         if not df_relatorio.empty:
             tabela = df_relatorio.to_html(index=False, border=0, justify="center", classes="tabela-carteira")
-            html_tabelas += f"<h3>{carteira}</h3>\n{tabela}\n<br>"
+            html_tabelas += f"{tabela}\n"
+        else:
+            html_tabelas += f"<p style='text-align: center; color: #666;'>Nenhum ativo nesta carteira processado.</p>\n"
+        html_tabelas += "<br>"
     
     html = f"""
     <html>
@@ -103,14 +107,14 @@ def processar_diario():
     sinais_finais = []
 
     for carteira, ativos in CARTEIRAS.items():
-        print(f"\n📊 Processando {carteira}...")
+        print(f"\n[*] Processando {carteira}...")
         for ativo in ativos:
             try:
                 # Pega dados diários (1d)
                 df = yf.download(ativo, period="5y", interval="1d", progress=False)
                 
                 if len(df) < 72:
-                    print(f"  ⚠️  {ativo}: Dados insuficientes")
+                    print(f"  [AVISO] {ativo}: Dados insuficientes")
                     continue
 
                 # Médias
@@ -133,13 +137,13 @@ def processar_diario():
                 status = "Neutro"
                 # Cruzamento de Alta
                 if sma17_penultima <= sma72_penultima and sma17_ultima > sma72_ultima:
-                    status = "🔼 COMPRA"
-                    sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": status, "Preço": round(fechamento_ultimo, 2)})
+                    status = "COMPRA"
+                    sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": status, "Preco": round(fechamento_ultimo, 2)})
                     
                 # Cruzamento de Baixa
                 elif sma17_penultima >= sma72_penultima and sma17_ultima < sma72_ultima:
-                    status = "🔽 VENDA"
-                    sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": status, "Preço": round(fechamento_ultimo, 2)})
+                    status = "VENDA"
+                    sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": status, "Preco": round(fechamento_ultimo, 2)})
 
                 relatorios_por_carteira[carteira].append({
                     "Ativo": ativo,
@@ -149,10 +153,10 @@ def processar_diario():
                     "Menor (5y)": round(menor_preco, 2),
                     "Maior (5y)": round(maior_preco, 2)
                 })
-                print(f"  ✅ {ativo}: {status}")
+                print(f"  [OK] {ativo}: {status}")
                 
             except Exception as e:
-                print(f"  ❌ {ativo}: Erro ao processar - {str(e)}")
+                print(f"  [ERRO] {ativo}: {str(e)}")
                 continue
 
     # --- RESULTADOS ---
@@ -168,21 +172,21 @@ def processar_diario():
     html = gerar_html(relatorios_df)
     with open(CAMINHO_HTML, "w", encoding="utf-8") as f:
         f.write(html)
-    print(f"\n✅ HTML atualizado: {CAMINHO_HTML}")
+    print(f"\n[OK] HTML atualizado: {CAMINHO_HTML}")
 
     if sinais_finais:
-        print("\n🎯 ATIVOS QUE CRUZARAM A MÉDIA HOJE:")
+        print("\n[ALERTA] ATIVOS QUE CRUZARAM A MEDIA HOJE:")
         df_sinais = pd.DataFrame(sinais_finais)
         print(df_sinais.to_string(index=False))
         
         # Gera o alerta visual no Windows
         mensagem = "\n".join([f"{item['Ativo']} ({item['Carteira']}): {item['Sinal']}" for item in sinais_finais])
         if toaster:
-            toaster.show_toast("🚨 Alerta de Médias Móveis", 
+            toaster.show_toast("Alerta de Medias Moveis", 
                                mensagem,
                                duration=10)
     else:
-        print("\n✅ Nenhum cruzamento de média detectado nos ativos selecionados hoje.")
+        print("\n[OK] Nenhum cruzamento de media detectado nos ativos selecionados hoje.")
 
 
 def loop_diario():
