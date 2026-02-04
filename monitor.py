@@ -12,7 +12,7 @@ except Exception:
     ToastNotifier = None
 
 # Alpha Vantage API key (substitua pela sua chave)
-ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "demo")
+ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "EX6OIZP8MT79GC9N")
 
 # Mapeamento de commodities para Alpha Vantage
 COMMODITY_SYMBOLS = {
