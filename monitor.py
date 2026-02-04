@@ -361,8 +361,15 @@ def processar_diario():
                 
                 if len(cruzamentos) > 0:
                     ultima_data_cruzamento = cruzamentos.index[-1].strftime('%d/%m/%Y')
+                    data_ultimo_cruzamento = cruzamentos.index[-1]
                 else:
                     ultima_data_cruzamento = "Sem dados"
+                    data_ultimo_cruzamento = df.index[-1]
+                
+                # Pegar dados desde 1 ano antes do último cruzamento
+                from datetime import timedelta
+                data_inicio = data_ultimo_cruzamento - timedelta(days=365)
+                df_chart = df[df.index >= data_inicio].copy()
 
                 # Últimos 2 dias para detectar o cruzamento no fechamento
                 sma17_penultima = df['SMA17'].iloc[-2]
@@ -425,7 +432,8 @@ def processar_diario():
                     "Maximo (5y)": round(float(maior_preco), 2)
                 })
                 # Guardar dados para o grafico (ultimo 180 dias)
-                df_chart = df.tail(180).copy()
+                # Guardar dados para o grafico
+                df_chart = df[df.index >= data_inicio].copy()
                 close_series = _series('Close', df_chart)
                 sma17_series = _series('SMA17', df_chart)
                 sma72_series = _series('SMA72', df_chart)
