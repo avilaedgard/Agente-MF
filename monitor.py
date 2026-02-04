@@ -37,9 +37,9 @@ def gerar_html(relatorios_por_carteira):
             
             for _, row in df_relatorio.iterrows():
                 sinal_class = "compra" if "COMPRA" in str(row['Sinal']) else "venda" if "VENDA" in str(row['Sinal']) else "neutro"
-                tooltip = "Sinal de COMPRA: media movel 17 cruzou acima de 72" if "COMPRA" in str(row['Sinal']) else \
-                          "Sinal de VENDA: media movel 17 cruzou abaixo de 72" if "VENDA" in str(row['Sinal']) else \
-                          "Sem sinal de cruzamento no momento"
+                tooltip = "COMPRA: SMA17 esta acima de SMA72 (tendencia de alta)" if "COMPRA" in str(row['Sinal']) else \
+                          "VENDA: SMA17 esta abaixo de SMA72 (tendencia de baixa)" if "VENDA" in str(row['Sinal']) else \
+                          "NEUTRO: Medias estao no mesmo nivel"
                 
                 html_tabelas += f"<tr>"
                 html_tabelas += f"<td><strong>{row['Ativo']}</strong></td>"
@@ -260,16 +260,22 @@ def processar_diario():
                 if pd.isna([sma17_penultima, sma72_penultima, sma17_ultima, sma72_ultima]).any():
                     continue
 
-                status = "Neutro"
-                # Cruzamento de Alta
-                if sma17_penultima <= sma72_penultima and sma17_ultima > sma72_ultima:
+                # Lógica baseada na posição das médias
+                if sma17_ultima > sma72_ultima:
                     status = "COMPRA"
-                    sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": status, "Preco": round(fechamento_ultimo, 2)})
-                    
-                # Cruzamento de Baixa
-                elif sma17_penultima >= sma72_penultima and sma17_ultima < sma72_ultima:
+                elif sma17_ultima < sma72_ultima:
                     status = "VENDA"
-                    sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": status, "Preco": round(fechamento_ultimo, 2)})
+                else:
+                    status = "Neutro"
+                
+                # Detectar cruzamentos para alertas especiais
+                cruzamento = False
+                if sma17_penultima <= sma72_penultima and sma17_ultima > sma72_ultima:
+                    cruzamento = True
+                    sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": "COMPRA (Cruzamento)", "Preco": round(fechamento_ultimo, 2)})
+                elif sma17_penultima >= sma72_penultima and sma17_ultima < sma72_ultima:
+                    cruzamento = True
+                    sinais_finais.append({"Carteira": carteira, "Ativo": ativo, "Sinal": "VENDA (Cruzamento)", "Preco": round(fechamento_ultimo, 2)})
 
                 relatorios_por_carteira[carteira].append({
                     "Ativo": ativo,
