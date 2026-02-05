@@ -2,9 +2,7 @@ name: API Scheduler - Fallback para Schedule
 
 on:
   workflow_dispatch:
-  schedule:
-    # Aumentando frequência para evitar que o schedule seja desativado
-    - cron: "*/10 * * * *"  # A cada 10 minutos
+  # schedule desativado - usar apenas como backup manual se principal falhar
 
 permissions:
   contents: write
