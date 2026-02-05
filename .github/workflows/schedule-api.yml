@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   verificar-horario:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Verificar se está no horário de execução
