@@ -1,0 +1,62 @@
+name: API Scheduler - Fallback para Schedule
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Aumentando frequência para evitar que o schedule seja desativado
+    - cron: "*/10 * * * *"  # A cada 10 minutos
+
+jobs:
+  verificar-horario:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar se está no horário de execução
+        id: check-time
+        run: |
+          # Converter UTC para BRT (GMT-3)
+          HORARIO_BRT=$(date -d '3 hours ago' +%H:%M)
+          HORA=$(echo $HORARIO_BRT | cut -d: -f1)
+          
+          # Rodar se estiver entre 10:00 e 19:00 BRT
+          if [ "$HORA" -ge 10 ] && [ "$HORA" -le 19 ]; then
+            echo "executar=true" >> $GITHUB_OUTPUT
+            echo "✅ Horário válido: $HORARIO_BRT BRT"
+          else
+            echo "executar=false" >> $GITHUB_OUTPUT
+            echo "⏭️  Fora do horário: $HORARIO_BRT BRT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check-time.outputs.executar == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.check-time.outputs.executar == 'true'
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        if: steps.check-time.outputs.executar == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Gerar relatório
+        if: steps.check-time.outputs.executar == 'true'
+        env:
+          RUN_ONCE: "1"
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+        run: python monitor.py
+
+      - name: Commitar HTML atualizado
+        if: steps.check-time.outputs.executar == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add relatorio_monitor.html
+          if git diff --cached --quiet; then
+            echo "Sem mudanças para commitar."
+          else
+            git commit -m "Atualiza relatório - scheduler API"
+            git push
