@@ -596,7 +596,7 @@ def processar_diario():
     print(f"\n[OK] HTML atualizado: {CAMINHO_HTML}")
 
     if sinais_finais:
-        print("\n[ALERTA] ATIVOS QUE CRUZARAM A MEDIA HOJE:")
+        print("\n[ALERTA] ATIVOS QUE CRUZARAM A MEDIA NOS ÚLTIMOS 14 DIAS:")
         df_sinais = pd.DataFrame(sinais_finais)
         print(df_sinais.to_string(index=False))
         
@@ -607,10 +607,14 @@ def processar_diario():
                                mensagem,
                                duration=10)
         
-        # Envia alerta por email
-        enviar_email_alerta(sinais_finais)
+        # Envia alerta por email apenas na última execução do dia (>= 18:30 BRT)
+        agora = agora_brt()
+        if agora.hour >= 18 and agora.minute >= 30:
+            enviar_email_alerta(sinais_finais)
+        else:
+            print(f"  [EMAIL] Aguardando horário de envio (18:30 BRT). Atual: {agora.strftime('%H:%M')}")
     else:
-        print("\n[OK] Nenhum cruzamento de media detectado nos ativos selecionados hoje.")
+        print("\n[OK] Nenhum cruzamento de media detectado nos ativos selecionados nos últimos 14 dias.")
 
 
 def loop_diario():
