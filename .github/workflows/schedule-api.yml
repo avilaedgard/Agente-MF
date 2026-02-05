@@ -6,6 +6,9 @@ on:
     # Aumentando frequência para evitar que o schedule seja desativado
     - cron: "*/10 * * * *"  # A cada 10 minutos
 
+permissions:
+  contents: write
+
 jobs:
   verificar-horario:
     runs-on: ubuntu-latest
@@ -13,8 +16,9 @@ jobs:
       - name: Verificar se está no horário de execução
         id: check-time
         run: |
-          # Converter UTC para BRT (GMT-3)
-          HORARIO_BRT=$(date -d '3 hours ago' +%H:%M)
+          # Usar fuso de São Paulo (BRT/BRST automático)
+          export TZ=America/Sao_Paulo
+          HORARIO_BRT=$(date +%H:%M)
           HORA=$(echo $HORARIO_BRT | cut -d: -f1)
           
           # Rodar se estiver entre 10:00 e 19:00 BRT
@@ -60,3 +64,4 @@ jobs:
           else
             git commit -m "Atualiza relatório - scheduler API"
             git push
+          fi
