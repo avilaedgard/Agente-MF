@@ -1,0 +1,37 @@
+name: Dispatcher - Dispara Monitor a cada 15 min
+
+on:
+  schedule:
+    # Roda a cada 15 minutos (mais confiável que cron direto)
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  dispatch-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar horário e disparar monitor
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Converter UTC para BRT (GMT-3)
+            const agora = new Date();
+            const brt = new Date(agora.getTime() - 3 * 60 * 60 * 1000);
+            const hora = brt.getHours();
+            const minuto = brt.getMinutes();
+            
+            console.log(`⏰ Hora BRT: ${hora.toString().padStart(2, '0')}:${minuto.toString().padStart(2, '0')}`);
+            
+            // Disparar entre 10:00 e 19:59 BRT
+            if (hora >= 10 && hora <= 19) {
+              console.log('✅ Disparando monitor.yml...');
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'monitor.yml',
+                ref: 'main'
+              });
+            } else {
+              console.log('⏭️  Fora do horário (10:00-19:59 BRT)');
+            }
