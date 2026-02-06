@@ -1,0 +1,30 @@
+name: External Scheduler - Acionador Confiável
+
+on:
+  schedule:
+    # Executar a cada 30 minutos como safeguard
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  trigger-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar horário e disparar workflow principal
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Usar fuso de São Paulo
+          export TZ=America/Sao_Paulo
+          HORARIO=$(date +%H:%M)
+          HORA=$(echo $HORARIO | cut -d: -f1)
+          
+          echo "Horário atual (BRT): $HORARIO"
+          
+          # Disparar entre 10:00 e 19:00 BRT
+          if [ "$HORA" -ge 10 ] && [ "$HORA" -le 19 ]; then
+            echo "✅ Disparando workflow principal..."
+            gh workflow run monitor.yml -r main
+          else
+            echo "⏭️  Fora do horário de execução"
+          fi
