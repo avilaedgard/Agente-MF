@@ -3,4 +3,6 @@ pandas
 win10toast; platform_system == "Windows"
 plotly
 alpha-vantage
+google-generativeai
+requests
 requests

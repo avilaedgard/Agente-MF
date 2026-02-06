@@ -14,8 +14,21 @@ try:
 except Exception:
     ToastNotifier = None
 
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+
 # Alpha Vantage API key (substitua pela sua chave)
 ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "EX6OIZP8MT79GC9N")
+
+# Gemini API key
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if GEMINI_API_KEY and genai:
+    genai.configure(api_key=GEMINI_API_KEY)
+    gemini_model = genai.GenerativeModel('gemini-pro')
+else:
+    gemini_model = None
 
 # Mapeamento de commodities para Alpha Vantage
 COMMODITY_SYMBOLS = {
@@ -71,6 +84,35 @@ def agora_brt():
     """Retorna datetime atual no fuso horário de Brasília (BRT/GMT-3)"""
     return datetime.now(BRT)
 
+def analisar_com_gemini(sinais_finais):
+    """Usa Gemini para analisar os sinais de cruzamento"""
+    if not gemini_model or not sinais_finais:
+        return ""
+    
+    try:
+        # Preparar texto com os sinais
+        texto_sinais = "\n".join([
+            f"- {item['Ativo']} ({item['Carteira']}): {item['Sinal']} em {item.get('Data', 'N/A')} - Preço R$ {item['Preco']}"
+            for item in sinais_finais
+        ])
+        
+        prompt = f"""Você é um analista de investimentos. Analise brevemente (máximo 3 linhas por ativo) esses sinais de cruzamento de média móvel (SMA17 x SMA72):
+
+{texto_sinais}
+
+Para cada sinal:
+1. Se for COMPRA: indique potencial de alinhamento de tendência
+2. Se for VENDA: indique potencial de reversão
+
+Seja objetivo e prático. Formato: "Ativo: análise breve"
+"""
+        
+        response = gemini_model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f"⚠️  Erro ao analisar com Gemini: {e}")
+        return ""
+
 # Configurações de Email
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", "edgard.1706@gmail.com")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "rrgf jdll hoht dock")
@@ -79,8 +121,11 @@ SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
 def enviar_email_alerta(sinais_finais):
-    """Envia notificação de cruzamento via email"""
+    """Envia notificação de cruzamento via email com análise do Gemini"""
     try:
+        # Analisar sinais com Gemini
+        analise_gemini = analisar_com_gemini(sinais_finais)
+        
         # Preparar mensagem
         msg = MIMEMultipart()
         msg['From'] = EMAIL_SENDER
@@ -88,16 +133,18 @@ def enviar_email_alerta(sinais_finais):
         msg['Subject'] = f"[ALERTA] Cruzamento de Médias Móveis - {agora_brt().strftime('%d/%m/%Y %H:%M')}"
         
         # Corpo do email em HTML
-        corpo = "<html><body>"
-        corpo += "<h2>Alerta de Cruzamento de Médias Móveis</h2>"
+        corpo = "<html><body style='font-family: Arial, sans-serif;'>"
+        corpo += "<h2>🎯 Alerta de Cruzamento de Médias Móveis</h2>"
         corpo += f"<p><strong>Data/Hora:</strong> {agora_brt().strftime('%d/%m/%Y %H:%M:%S BRT')}</p>"
-        corpo += "<table border='1' cellpadding='10'>"
-        corpo += "<tr><th>Ativo</th><th>Carteira</th><th>Sinal</th><th>Preço</th><th>Data do Cruzamento</th></tr>"
+        
+        # Tabela de sinais
+        corpo += "<table border='1' cellpadding='10' style='border-collapse: collapse; width: 100%;'>"
+        corpo += "<tr style='background-color: #333; color: white;'><th>Ativo</th><th>Carteira</th><th>Sinal</th><th>Preço</th><th>Data do Cruzamento</th></tr>"
         
         for item in sinais_finais:
             cor = "#28a745" if "COMPRA" in item['Sinal'] else "#dc3545"
             corpo += f"<tr style='background-color: {cor}; color: white;'>"
-            corpo += f"<td>{item['Ativo']}</td>"
+            corpo += f"<td><strong>{item['Ativo']}</strong></td>"
             corpo += f"<td>{item['Carteira']}</td>"
             corpo += f"<td><strong>{item['Sinal']}</strong></td>"
             corpo += f"<td>R$ {item['Preco']}</td>"
@@ -105,7 +152,15 @@ def enviar_email_alerta(sinais_finais):
             corpo += "</tr>"
         
         corpo += "</table>"
-        corpo += "<br><p><em>Relatório completo disponível em: https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html</em></p>"
+        
+        # Análise do Gemini
+        if analise_gemini:
+            corpo += "<hr style='margin: 20px 0;'>"
+            corpo += "<h3>🤖 Análise por IA (Gemini)</h3>"
+            corpo += f"<pre style='background-color: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto;'>{analise_gemini}</pre>"
+        
+        corpo += "<hr style='margin: 20px 0;'>"
+        corpo += "<p><em>📊 Relatório completo: <a href='https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html'>https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html</a></em></p>"
         corpo += "</body></html>"
         
         msg.attach(MIMEText(corpo, 'html'))
