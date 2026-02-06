@@ -607,12 +607,12 @@ def processar_diario():
                                mensagem,
                                duration=10)
         
-        # Envia alerta por email apenas na última execução do dia (>= 18:30 BRT)
+        # Envia alerta por email apenas na última execução do dia (>= 19:00 BRT)
         agora = agora_brt()
-        if agora.hour >= 18 and agora.minute >= 30:
+        if agora.hour >= 19:
             enviar_email_alerta(sinais_finais)
         else:
-            print(f"  [EMAIL] Aguardando horário de envio (18:30 BRT). Atual: {agora.strftime('%H:%M')}")
+            print(f"  [EMAIL] Aguardando horário de envio (19:00 BRT). Atual: {agora.strftime('%H:%M')}")
     else:
         print("\n[OK] Nenhum cruzamento de media detectado nos ativos selecionados nos últimos 14 dias.")
 
