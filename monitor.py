@@ -122,6 +122,26 @@ SMTP_PORT = 587
 
 def enviar_email_alerta(sinais_finais):
     """Envia notificação de cruzamento via email com análise do Gemini"""
+    # Validar se as credenciais de email estão configuradas
+    if not EMAIL_SENDER or not EMAIL_PASSWORD or not EMAIL_RECIPIENT:
+        print("  [ERRO] Credenciais de email não configuradas!")
+        print("  [INFO] Para receber alertas por email, configure os secrets no GitHub:")
+        print("  [INFO]   - EMAIL_SENDER: seu email do Gmail")
+        print("  [INFO]   - EMAIL_PASSWORD: senha de app do Gmail (https://myaccount.google.com/apppasswords)")
+        print("  [INFO]   - EMAIL_RECIPIENT: email destinatário")
+        print("  [INFO] Acesse: Settings → Secrets and variables → Actions → New repository secret")
+        return False
+    
+    # Verificar se as credenciais são as padrões (hardcodadas) em ambiente de produção
+    if os.getenv("RUN_ONCE") == "1" and (
+        os.getenv("EMAIL_SENDER") is None or 
+        os.getenv("EMAIL_PASSWORD") is None or 
+        os.getenv("EMAIL_RECIPIENT") is None
+    ):
+        print("  [AVISO] Usando credenciais padrão do código. Configure secrets no GitHub para produção!")
+        print("  [INFO] Acesse: Settings → Secrets and variables → Actions → New repository secret")
+        return False
+    
     try:
         # Analisar sinais com Gemini
         analise_gemini = analisar_com_gemini(sinais_finais)
@@ -174,8 +194,19 @@ def enviar_email_alerta(sinais_finais):
         print(f"  [EMAIL] Alerta enviado com sucesso para {EMAIL_RECIPIENT}")
         return True
         
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"  [ERRO] Falha na autenticação SMTP: {str(e)}")
+        print("  [INFO] Verifique se:")
+        print("  [INFO]   1. As credenciais EMAIL_SENDER e EMAIL_PASSWORD estão corretas")
+        print("  [INFO]   2. Você está usando uma 'Senha de app' do Gmail, não sua senha normal")
+        print("  [INFO]   3. Gere uma senha de app em: https://myaccount.google.com/apppasswords")
+        print("  [INFO]   4. A verificação em 2 etapas está ativada na conta do Gmail")
+        return False
+    except smtplib.SMTPException as e:
+        print(f"  [ERRO] Erro SMTP ao enviar email: {str(e)}")
+        return False
     except Exception as e:
-        print(f"  [ERRO] Falha ao enviar email: {str(e)}")
+        print(f"  [ERRO] Falha inesperada ao enviar email: {str(e)}")
         return False
 
 def gerar_html(relatorios_por_carteira, charts_data):
