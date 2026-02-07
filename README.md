@@ -102,6 +102,9 @@ O workflow GitHub Actions está configurado para executar:
 
 - **Horários**: 10h, 11h, 12h, 13h, 14h, 15h, 16h, 17h, 18h, 19h BRT
 - **Envio de Email**: Apenas na execução das 19h ou posterior
+- **Configuração**: Veja o arquivo [`.github/workflows/monitor.yml`](.github/workflows/monitor.yml) para detalhes do agendamento
+
+> **Nota**: Se modificar os horários no README, lembre-se de atualizar também o arquivo de workflow.
 
 ## 📝 Logs e Debugging
 

@@ -122,24 +122,24 @@ SMTP_PORT = 587
 
 def enviar_email_alerta(sinais_finais):
     """Envia notificação de cruzamento via email com análise do Gemini"""
-    # Validar se as credenciais de email estão configuradas
+    # Verificar se as credenciais padrões (hardcodadas) estão sendo usadas em ambiente de produção
+    if os.getenv("RUN_ONCE") == "1":
+        # Em produção (GitHub Actions), os secrets devem estar configurados
+        if (os.getenv("EMAIL_SENDER") is None or 
+            os.getenv("EMAIL_PASSWORD") is None or 
+            os.getenv("EMAIL_RECIPIENT") is None):
+            print("  [ERRO] Secrets de email não configurados no GitHub Actions!")
+            print("  [INFO] Para receber alertas por email, configure os secrets no GitHub:")
+            print("  [INFO]   1. Gere uma senha de app do Gmail: https://myaccount.google.com/apppasswords")
+            print("  [INFO]   2. Vá em: Settings → Secrets and variables → Actions → New repository secret")
+            print("  [INFO]   3. Adicione os secrets: EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECIPIENT")
+            print("  [INFO] Consulte o README.md para instruções detalhadas")
+            return False
+    
+    # Validar se as credenciais estão presentes
     if not EMAIL_SENDER or not EMAIL_PASSWORD or not EMAIL_RECIPIENT:
         print("  [ERRO] Credenciais de email não configuradas!")
-        print("  [INFO] Para receber alertas por email, configure os secrets no GitHub:")
-        print("  [INFO]   - EMAIL_SENDER: seu email do Gmail")
-        print("  [INFO]   - EMAIL_PASSWORD: senha de app do Gmail (https://myaccount.google.com/apppasswords)")
-        print("  [INFO]   - EMAIL_RECIPIENT: email destinatário")
-        print("  [INFO] Acesse: Settings → Secrets and variables → Actions → New repository secret")
-        return False
-    
-    # Verificar se as credenciais são as padrões (hardcodadas) em ambiente de produção
-    if os.getenv("RUN_ONCE") == "1" and (
-        os.getenv("EMAIL_SENDER") is None or 
-        os.getenv("EMAIL_PASSWORD") is None or 
-        os.getenv("EMAIL_RECIPIENT") is None
-    ):
-        print("  [AVISO] Usando credenciais padrão do código. Configure secrets no GitHub para produção!")
-        print("  [INFO] Acesse: Settings → Secrets and variables → Actions → New repository secret")
+        print("  [INFO] Configure as variáveis de ambiente ou secrets do GitHub")
         return False
     
     try:
@@ -202,11 +202,27 @@ def enviar_email_alerta(sinais_finais):
         print("  [INFO]   3. Gere uma senha de app em: https://myaccount.google.com/apppasswords")
         print("  [INFO]   4. A verificação em 2 etapas está ativada na conta do Gmail")
         return False
+    except smtplib.SMTPConnectError as e:
+        print(f"  [ERRO] Falha ao conectar ao servidor SMTP: {str(e)}")
+        print("  [INFO] Possíveis causas:")
+        print("  [INFO]   1. Servidor SMTP indisponível ou inacessível")
+        print("  [INFO]   2. Firewall ou proxy bloqueando a porta 587")
+        print("  [INFO]   3. Problema de rede temporário - tente novamente mais tarde")
+        return False
+    except smtplib.SMTPServerDisconnected as e:
+        print(f"  [ERRO] Servidor SMTP desconectou durante o envio: {str(e)}")
+        print("  [INFO] O servidor pode estar sobrecarregado ou com problemas temporários")
+        return False
     except smtplib.SMTPException as e:
         print(f"  [ERRO] Erro SMTP ao enviar email: {str(e)}")
+        print("  [INFO] Verifique:")
+        print("  [INFO]   1. Se o email do remetente é válido")
+        print("  [INFO]   2. Se o email do destinatário é válido")
+        print("  [INFO]   3. Logs acima para mais detalhes do erro")
         return False
     except Exception as e:
         print(f"  [ERRO] Falha inesperada ao enviar email: {str(e)}")
+        print("  [INFO] Erro não relacionado ao SMTP - verifique configurações de rede")
         return False
 
 def gerar_html(relatorios_por_carteira, charts_data):
