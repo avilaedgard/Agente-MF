@@ -1,0 +1,48 @@
+name: Hourly Analysis Update
+
+on:
+  schedule:
+    # Roda a cada hora às :00
+    - cron: '0 * * * *'
+  
+  # Permite executar manualmente
+  workflow_dispatch:
+
+jobs:
+  generate-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r api/requirements-api.txt
+      
+      - name: Generate current analysis
+        run: python scripts/generate_data.py --analysis
+      
+      - name: Commit and push
+        run: |
+          git config --local user.email 'action@github.com'
+          git config --local user.name 'GitHub Action'
+          git add data/current-analysis.json
+          git commit -m 'Update analysis - '"$(date '+%Y-%m-%d %H:%M:%S')"'' || exit 0
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

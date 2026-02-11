@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-02-11T03:00:00-03:00",
+  "periodo_anos": 15,
+  "status": "aguardando",
+  "resumo": {
+    "total_ativos": 0,
+    "ativos_analisados": 0,
+    "rentabilidade_media": 0,
+    "taxa_acerto_media": 0
+  },
+  "carteiras": {}
+}

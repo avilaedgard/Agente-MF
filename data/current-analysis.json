@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-02-11T18:00:00-03:00",
+  "carteiras": {
+    "Carteira Ações": [],
+    "Carteira ETF": [],
+    "Watchlist": [],
+    "Especulação": []
+  },
+  "sinais_recentes": [],
+  "analise_gemini": "Aguardando primeira execução do workflow..."
+}
