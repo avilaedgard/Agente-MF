@@ -238,20 +238,6 @@ SMTP_PORT = 587
 
 def enviar_email_alerta(sinais_finais):
     """Envia notificação de cruzamento via email com análise do Gemini"""
-    # Verificar se as credenciais padrões (hardcodadas) estão sendo usadas em ambiente de produção
-    if os.getenv("RUN_ONCE") == "1":
-        # Em produção (GitHub Actions), os secrets devem estar configurados
-        if (os.getenv("EMAIL_SENDER") is None or 
-            os.getenv("EMAIL_PASSWORD") is None or 
-            os.getenv("EMAIL_RECIPIENT") is None):
-            print("  [ERRO] Secrets de email não configurados no GitHub Actions!")
-            print("  [INFO] Para receber alertas por email, configure os secrets no GitHub:")
-            print("  [INFO]   1. Gere uma senha de app do Gmail: https://myaccount.google.com/apppasswords")
-            print("  [INFO]   2. Vá em: Settings → Secrets and variables → Actions → New repository secret")
-            print("  [INFO]   3. Adicione os secrets: EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECIPIENT")
-            print("  [INFO] Consulte o README.md para instruções detalhadas")
-            return False
-    
     # Validar se as credenciais estão presentes
     if not EMAIL_SENDER or not EMAIL_PASSWORD or not EMAIL_RECIPIENT:
         print("  [ERRO] Credenciais de email não configuradas!")
@@ -948,7 +934,7 @@ def processar_diario():
         if test_mode or agora.hour >= 19:
             enviar_email_alerta(sinais_finais)
             if test_mode:
-                print("  [EMAIL] 📧 Teste de email disparado (TEST_EMAIL=1)")
+                print("  [EMAIL] Email de teste disparado (TEST_EMAIL=1)")
         else:
             print(f"  [EMAIL] Aguardando horário de envio (19:00 BRT). Atual: {agora.strftime('%H:%M')}")
     else:
