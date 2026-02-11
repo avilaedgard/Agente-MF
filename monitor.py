@@ -659,7 +659,7 @@ def gerar_html(relatorios_por_carteira, charts_data):
 </head>
 <body>
     <div class="container">
-        <h2 id="titulo">{titulo}</h2>
+        <h2>{titulo}</h2>
         {html_tabelas if html_tabelas.strip() else '<p style="text-align: center; color: #7f8c8d;">Nenhum dado disponivel no momento.</p>'}
         <div class="footer">
             <p>Atualizado automaticamente todos os dias as 18:30 BRT</p>
@@ -734,31 +734,6 @@ def gerar_html(relatorios_por_carteira, charts_data):
             document.getElementById('chartModal').style.display = 'none';
             Plotly.purge('chart');
         }}
-
-        // Atualizar hora dinamicamente a cada minuto
-        function atualizarHora() {{
-            const agora = new Date();
-            const opcoes = {{ timeZone: 'America/Sao_Paulo', year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }};
-            const formatter = new Intl.DateTimeFormat('pt-BR', opcoes);
-            const partes = formatter.formatToParts(agora);
-            
-            let dia, mes, ano, hora, minuto;
-            for (let parte of partes) {{
-                if (parte.type === 'day') dia = parte.value;
-                if (parte.type === 'month') mes = parte.value;
-                if (parte.type === 'year') ano = parte.value;
-                if (parte.type === 'hour') hora = parte.value;
-                if (parte.type === 'minute') minuto = parte.value;
-            }}
-            
-            const dataFormatada = `${{dia}}/${{mes}}/${{ano}} ${{hora}}:${{minuto}}`;
-            document.getElementById('titulo').textContent = `Relatório de Médias Móveis - ${{dataFormatada}}`;
-        }}
-        
-        // Atualizar na primeira carga
-        atualizarHora();
-        // Atualizar a cada 60 segundos
-        setInterval(atualizarHora, 60000);
     </script>
 </body>
 </html>"""
