@@ -4,10 +4,27 @@
    ======================================== */
 
 // Detecção automática do ambiente
-const DATA_DEFAULT = {
-    currentAnalysis: window.DATA_URLS?.currentAnalysis || '/data/current-analysis.json',
-    backtest: window.DATA_URLS?.backtest || '/data/backtest.json'
+const getDataUrl = (filename) => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Localmente: usar caminho relativo à pasta frontend
+        return `../data/${filename}`;
+    } else if (window.location.hostname.includes('github.io')) {
+        // GitHub Pages: usar caminho relativo que funciona do /Agente-MF/
+        return `./data/${filename}`;
+    } else {
+        // Fallback: tentar usar URL do GitHub se disponível
+        return window.DATA_URLS?.[filename === 'current-analysis.json' ? 'currentAnalysis' : 'backtest'] || 
+               `./data/${filename}`;
+    }
 };
+
+const DATA_DEFAULT = {
+    currentAnalysis: getDataUrl('current-analysis.json'),
+    backtest: getDataUrl('backtest.json')
+};
+
+console.log('📍 Ambiente:', window.location.hostname);
+console.log('📊 URLs de dados:', DATA_DEFAULT);
 
 let currentData = {
     analiseAtual: null,
