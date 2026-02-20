@@ -1,102 +1,86 @@
-# Agente de Monitoramento de Médias Móveis
+# 📊 VIGILANTE - Monitor de Médias Móveis
 
-Sistema automatizado para monitoramento de cruzamentos de médias móveis (SMA17 x SMA72) em ações, ETFs e commodities.
+**Sistema automatizado para monitoramento de cruzamentos SMA17 × SMA72** com atualização horária e alertas diários por email.
 
-## 🚀 Funcionalidades
+## ⚡ Como Funciona
 
-- **Monitoramento Automático**: Execução automática a cada hora (10h-19h BRT) via GitHub Actions
-- **Relatório HTML**: Geração de relatório visual com gráficos interativos
-- **Alertas por Email**: Notificações automáticas quando detecta cruzamentos de médias
-- **Análise com IA**: Integração com Google Gemini para análise dos sinais
+### 🔄 Ciclo Automático (GitHub Actions)
+
+1. **Executa a cada hora** (10h-19h BRT) automaticamente
+2. **Busca dados** dos ativos via Yahoo Finance
+3. **Calcula SMA17 e SMA72** para cada ativo
+4. **Gera HTML** com relatório visual atualizado
+5. **Detecta cruzamentos** nos últimos 14 dias
+6. **Envia email** diariamente após 19:00 BRT (se houver sinais)
+
+### 📍 Relatório Online
+
+🌐 **Acesse aqui**: https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html
+
+*Atualizado automaticamente a cada hora*
 
 ## 📊 Carteiras Monitoradas
 
-- **Carteira Ações**: ITSA4.SA, NEOE3.SA, BBDC4.SA, LREN3.SA, RDOR3.SA, GOAU4.SA, KLBN4.SA, EGIE3.SA, RECV3.SA, JHSF3.SA
-- **Carteira ETF**: IVVB11.SA, GOLD11.SA, DIVO11.SA, HASH11.SA
-- **Watchlist**: VALE3.SA, PETR3.SA, BTC-USD, GOLD, SILVER
-- **Especulação**: CEAB3.SA, S1BS34.SA
+| Carteira | Ativos |
+|----------|--------|
+| **Ações** | ITSA4.SA, NEOE3.SA, BBDC4.SA, LREN3.SA, RDOR3.SA, GOAU4.SA, KLBN4.SA, EGIE3.SA, RECV3.SA, JHSF3.SA |
+| **ETFs** | IVVB11.SA, GOLD11.SA, DIVO11.SA, HASH11.SA |
+| **Watchlist** | VALE3.SA, PETR3.SA, BTC-USD |
+| **Especulação** | CEAB3.SA, S1BS34.SA |
 
-## ⚙️ Configuração de Alertas por Email
+## ⚙️ Configuração Necessária
 
-Para receber alertas por email quando houver cruzamentos de médias, você precisa configurar os **GitHub Secrets**:
+### 1️⃣ Gerar Senha de App do Gmail
 
-### Passo 1: Gerar Senha de App do Gmail
+1. Acesse: https://myaccount.google.com/apppasswords
+2. Selecione: **Email** e **Outro (smartphone)**
+3. Digite: `GitHub Actions Monitor`
+4. Copie a senha (16 caracteres)
 
-1. Acesse sua conta do Google
-2. Vá em: https://myaccount.google.com/apppasswords
-3. Ative a **verificação em 2 etapas** se ainda não estiver ativa
-4. Gere uma nova **senha de app**:
-   - Selecione "App": **Email**
-   - Selecione "Dispositivo": **Outro (nome personalizado)**
-   - Digite: **GitHub Actions Monitor**
-5. Copie a senha gerada (16 caracteres sem espaços)
+### 2️⃣ Adicionar GitHub Secrets
 
-### Passo 2: Configurar Secrets no GitHub
+No seu repositório → **Settings** → **Secrets and variables** → **Actions** → **New secret**
 
-1. Acesse seu repositório no GitHub
-2. Vá em: **Settings** → **Secrets and variables** → **Actions**
-3. Clique em **New repository secret**
-4. Adicione os seguintes secrets:
+| Nome | Valor |
+|------|-------|
+| `EMAIL_SENDER` | seu.email@gmail.com |
+| `EMAIL_PASSWORD` | pkhmooxtuopvnrcp |
+| `EMAIL_RECIPIENT` | edgard.1706@gmail.com |
 
-| Nome | Descrição | Exemplo |
-|------|-----------|---------|
-| `EMAIL_SENDER` | Seu email do Gmail | `seu.email@gmail.com` |
-| `EMAIL_PASSWORD` | Senha de app gerada no passo 1 | `abcd efgh ijkl mnop` |
-| `EMAIL_RECIPIENT` | Email que receberá os alertas | `seu.email@gmail.com` |
+> ✅ **Pronto!** O sistema já comçará a rodar automaticamente.
 
-### Passo 3: Configurar Gemini AI (Opcional)
-
-Para análise inteligente dos sinais com IA:
-
-1. Obtenha uma chave API do Google Gemini: https://makersuite.google.com/app/apikey
-2. Adicione o secret:
-
-| Nome | Descrição |
-|------|-----------|
-| `GEMINI_API_KEY` | Chave API do Google Gemini |
-
-## 🔍 Como Funciona
-
-1. **Coleta de Dados**: Busca dados históricos de 5 anos via Yahoo Finance
-2. **Cálculo de Médias**: Calcula SMA17 e SMA72 para cada ativo
-3. **Detecção de Cruzamentos**: Identifica cruzamentos nos últimos 14 dias
-4. **Análise com IA**: Gemini analisa os sinais detectados (se configurado)
-5. **Notificação**: Envia email com os alertas após 19h BRT
-6. **Relatório**: Atualiza o HTML disponível em: https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html
-
-## 📧 Exemplo de Email de Alerta
-
-Quando detectado um cruzamento, você receberá um email com:
-
-- **Tabela de Sinais**: Ativo, carteira, tipo de sinal (COMPRA/VENDA), preço e data
-- **Análise IA**: Interpretação dos sinais pelo Gemini
-- **Link**: Acesso direto ao relatório completo
-
-## 🛠️ Desenvolvimento Local
-
-### Requisitos
+## 🧪 Testar Localmente
 
 ```bash
+# Instalar dependências
 pip install -r requirements.txt
-```
 
-### Executar Localmente
-
-```bash
-# Configurar variáveis de ambiente (opcional)
-export EMAIL_SENDER="seu.email@gmail.com"
-export EMAIL_PASSWORD="sua-senha-de-app"
-export EMAIL_RECIPIENT="destinatario@gmail.com"
-export GEMINI_API_KEY="sua-chave-gemini"
-
-# Executar uma vez
-RUN_ONCE=1 python monitor.py
-
-# Ou executar em loop (verifica a cada 30s)
+# Executar análise uma vez
 python monitor.py
 ```
 
-## 🔄 Agendamento Automático
+## 📧 O que Você Recebe
+
+- **Assunto**: `[ALERTA] Cruzamentos de Médias - 20/02/2026 19:15`
+- **Conteúdo**: Tabela com todos os cruzamentos detectados nos últimos 14 dias
+- **Link**: Acesso direto ao relatório completo
+
+## 🔧 Personalização
+
+Edite `monitor.py` para:
+- Adicionar/remover ativos
+- Mudar períodos de análise
+- Alterar horários de envio de email
+
+## 📝 Estrutura de Arquivos
+
+```
+.
+├── monitor.py              # Script principal (atualizado a cada hora)
+├── requirements.txt        # Dependências Python
+├── relatorio_monitor.html  # Relatório gerado (atualizado)
+└── data/
+    └── current-analysis.json  # Dados em JSON
 
 O workflow GitHub Actions está configurado para executar:
 

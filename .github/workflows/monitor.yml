@@ -1,64 +1,61 @@
-name: Atualizar HTML do Monitor
+name: Monitor - Atualizar HTML e Enviar Alertas
 
 on:
   schedule:
-    # Roda a cada hora: 10h, 11h, 12h, ..., 19h BRT (13h, 14h, ..., 22h UTC)
-    - cron: "0 13 * * *" # 10:00 BRT
-    - cron: "0 14 * * *" # 11:00 BRT
-    - cron: "0 15 * * *" # 12:00 BRT
-    - cron: "0 16 * * *" # 13:00 BRT
-    - cron: "0 17 * * *" # 14:00 BRT
-    - cron: "0 18 * * *" # 15:00 BRT
-    - cron: "0 19 * * *" # 16:00 BRT
-    - cron: "0 20 * * *" # 17:00 BRT
-    - cron: "0 21 * * *" # 18:00 BRT
-    - cron: "0 22 * * *" # 19:00 BRT
-  workflow_dispatch: # Permite execução manual
+    # Executa a cada hora às :00 (mais simples e confiável)
+    # Convertendo para UTC: 10h-19h BRT = 13h-22h UTC
+    - cron: "0 13-22 * * *"
+  
+  # Permite execução manual
+  workflow_dispatch:
+  
+  # Ao fazer push no monitor.py
   push:
-    branches:
-      - main
-    paths:
-      - 'monitor.py'
-      - '.github/workflows/monitor.yml'
+    branches: [main]
+    paths: [monitor.py]
 
 permissions:
   contents: write
 
 jobs:
-  gerar-html:
+  monitor:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          fetch-depth: 0
-
-      - name: Configurar Python
-        uses: actions/setup-python@v5
+          python-version: '3.11'
+      
+      - name: Cache pip
+        uses: actions/cache@v3
         with:
-          python-version: "3.11"
-
-      - name: Instalar dependências
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+      
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Gerar relatório
+      
+      - name: Run monitor
         env:
-          RUN_ONCE: "1"
           EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
         run: python monitor.py
-
-      - name: Commitar HTML atualizado
+      
+      - name: Commit and push
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add relatorio_monitor.html
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add relatorio_monitor.html data/current-analysis.json
           if git diff --cached --quiet; then
-            echo "Sem mudanças para commitar."
+            echo "✅ Sem mudanças para commitar"
           else
-            git commit -m "Atualiza relatório diário"
+            git commit -m "🔄 atualização automática - $(date +'%d/%m/%Y %H:%M')"
             git push
           fi

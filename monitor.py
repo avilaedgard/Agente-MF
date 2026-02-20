@@ -1,398 +1,209 @@
+#!/usr/bin/env python3
+"""
+Vigilante - Monitor de Médias Móveis (SMA17 × SMA72)
+Atualiza relatório HTML a cada hora e envia alertas por email diariamente.
+"""
+
 import os
-import time
 import json
-import yfinance as yf
-import pandas as pd
-from datetime import datetime, timezone, timedelta
-import requests
+import time
 import smtplib
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from functools import lru_cache
-from urllib.parse import quote_plus
 
-try:
-    from win10toast import ToastNotifier
-except Exception:
-    ToastNotifier = None
+import yfinance as yf
+import pandas as pd
 
-try:
-    import google.generativeai as genai
-except ImportError:
-    genai = None
+# ============================================================================
+# CONFIGURAÇÕES
+# ============================================================================
 
-# Alpha Vantage API key (substitua pela sua chave)
-ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "EX6OIZP8MT79GC9N")
+# Fuso horário do Brasil (BRT = GMT-3)
+BRT = timezone(timedelta(hours=-3))
 
-# Gemini API key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY and genai:
-    genai.configure(api_key=GEMINI_API_KEY)
-    # Modelo Flash (mais leve, maior cota no tier gratuito)
-    gemini_model = genai.GenerativeModel("gemini-2.5-flash")
-else:
-    gemini_model = None
-
-# Mapeamento de commodities para Alpha Vantage
-COMMODITY_SYMBOLS = {
-    "GC=F": "GLD",  # Ouro
-    "SI=F": "SLV",  # Prata
-}
-
-def fetch_commodity_data(symbol, period="5y"):
-    """Busca dados de commodities - não mais necessário, YFinance trata direto"""
-    return None
-
-
-def fetch_data(ativo):
-    """Tenta buscar dados do Yahoo Finance"""
-    # Remapear GOLD e SILVER para os ETFs GLD e SLV
-    symbol_map = {
-        "GOLD": "GLD",  # SPDR Gold Trust ETF
-        "SILVER": "SLV"  # iShares Silver Trust ETF
-    }
-    
-    # Usar o mapa se necessário
-    ticker = symbol_map.get(ativo, ativo)
-    
-    try:
-        # Yahoo Finance para ações/ETFs
-        df = yf.download(ticker, period="5y", interval="1d", progress=False)
-        if df is not None and len(df) > 0:
-            return df
-    except:
-        pass
-    
-    return None
-    
-    # Se nada funcionou, retorna None
-    return None
-
-# Configurações
+# Carteiras para monitorar
 CARTEIRAS = {
     "Carteira Ações": ["ITSA4.SA", "NEOE3.SA", "BBDC4.SA", "LREN3.SA", "RDOR3.SA", "GOAU4.SA", "KLBN4.SA", "EGIE3.SA", "RECV3.SA", "JHSF3.SA"],
     "Carteira ETF": ["IVVB11.SA", "GOLD11.SA", "DIVO11.SA", "HASH11.SA"],
-    "Watchlist": ["VALE3.SA", "PETR3.SA", "BTC-USD", "GOLD", "SILVER"],  # GOLD->GLD, SILVER->SLV (ETFs via YFinance)
+    "Watchlist": ["VALE3.SA", "PETR3.SA", "BTC-USD"],
     "Especulação": ["CEAB3.SA", "S1BS34.SA"]
 }
 
-toaster = ToastNotifier() if ToastNotifier else None
-HORARIO_EXECUCAO = "18:30"
-CAMINHO_HTML = "relatorio_monitor.html"
-
-# Fuso horário do Brasil (GMT-3)
-BRT = timezone(timedelta(hours=-3))
-
-def agora_brt():
-    """Retorna datetime atual no fuso horário de Brasília (BRT/GMT-3)"""
-    return datetime.now(BRT)
-
-def analisar_com_gemini(sinais_finais):
-    """Usa Gemini para analisar os sinais de cruzamento"""
-    if not sinais_finais:
-        return ""
-
-    def _fallback_analise():
-        linhas = []
-        for item in sinais_finais:
-            ativo = item.get("Ativo", "")
-            sinal = item.get("Sinal", "")
-            dist = item.get("Distancia", 0)
-            if "COMPRA" in sinal:
-                forca = "forte" if dist > 1.0 else "moderada" if dist > 0.3 else "fraca"
-                texto = f"sinal de {forca} intensidade - tendência pode estar se alinhando; confirme com volume e contexto do setor"
-            else:
-                forca = "forte" if dist > 1.0 else "moderada" if dist > 0.3 else "fraca"
-                texto = f"sinal de {forca} intensidade - atenção a possível reversão ou continuação da queda"
-            linhas.append(f"{ativo}: {texto}.")
-        return " ".join(linhas)
-
-    if not gemini_model:
-        return _fallback_analise()
-    
-    try:
-        # Preparar texto com os sinais (APENAS dados essenciais)
-        texto_sinais = "\n".join([
-            f"- {item['Ativo']}: {item['Sinal']} em {item.get('Data', 'N/A')} - R$ {item['Preco']} (Dist: {item.get('Distancia', 'N/A')})"
-            for item in sinais_finais
-        ])
-        
-        prompt = f"""Analise esses sinais de cruzamento SMA17 x SMA72:
-
-{texto_sinais}
-
-Para cada ativo, forneça análise objetiva (2-3 linhas):
-1. **Força do Sinal**: Distância >1.0=forte, 0.3-1.0=moderada, <0.3=fraca
-2. **Recomendação**: Entrada/saída/aguardar confirmação
-
-Formato: "[ATIVO]: [análise]"
-"""
-        
-        print(f"[DEBUG] Chamando Gemini com {len(sinais_finais)} sinais...")
-        response = gemini_model.generate_content(prompt)
-        print("[DEBUG] Gemini respondeu!")
-        
-        texto = getattr(response, "text", "") or ""
-        print(f"[DEBUG] Texto extraído: {len(texto)} chars")
-
-        if not texto and hasattr(response, "candidates") and response.candidates:
-            try:
-                parts = response.candidates[0].content.parts
-                texto = "".join([getattr(p, "text", "") for p in parts])
-                print(f"[DEBUG] Texto via candidates: {len(texto)} chars")
-            except Exception as e:
-                print(f"[DEBUG] Erro candidates: {e}")
-                texto = ""
-
-        if not texto:
-            feedback = getattr(response, "prompt_feedback", None)
-            if feedback:
-                print(f"⚠️  Gemini vazio. Feedback: {feedback}")
-            else:
-                print("⚠️  Gemini retornou vazio")
-            return _fallback_analise()
-
-        print(f"[DEBUG] ✓ Análise: {texto[:100]}...")
-        return texto
-    except Exception as e:
-        print(f"⚠️  Erro ao analisar com Gemini: {e}")
-        return _fallback_analise()
-
-
-def _parse_data_cruzamento(data_str):
-    try:
-        return datetime.strptime(data_str, "%d/%m/%Y").replace(tzinfo=BRT)
-    except Exception:
-        return None
-
-
-def _dias_desde(data_str):
-    dt = _parse_data_cruzamento(data_str) if data_str else None
-    if not dt:
-        return None
-    return (agora_brt() - dt).days
-
-
-@lru_cache(maxsize=64)
-def _fundamentos_ativo(ativo):
-    try:
-        info = yf.Ticker(ativo).info
-        return {
-            "sector": info.get("sector"),
-            "industry": info.get("industry"),
-            "marketCap": info.get("marketCap"),
-            "trailingPE": info.get("trailingPE"),
-            "dividendYield": info.get("dividendYield")
-        }
-    except Exception:
-        return {}
-
-
-def _formatar_marketcap(valor):
-    if not valor:
-        return "N/A"
-    try:
-        if valor >= 1e12:
-            return f"{valor/1e12:.2f}T"
-        if valor >= 1e9:
-            return f"{valor/1e9:.2f}B"
-        if valor >= 1e6:
-            return f"{valor/1e6:.2f}M"
-        return str(valor)
-    except Exception:
-        return "N/A"
-
-
-def _montar_links_noticias(sinais_finais):
-    itens = []
-    for item in sinais_finais:
-        ativo = item.get("Ativo", "")
-        carteira = item.get("Carteira", "")
-        data_str = item.get("Data", "")
-        dias = _dias_desde(data_str) or 0
-        sinal = item.get("Sinal", "")
-
-        score = max(0, 100 - (dias * 4))
-        if "VENDA" in sinal:
-            score += 10
-        if carteira in ("Carteira Ações", "Carteira ETF"):
-            score += 5
-
-        query = quote_plus(ativo)
-        url = f"https://news.google.com/search?q={query}"
-        itens.append({
-            "Ativo": ativo,
-            "Score": score,
-            "Url": url
-        })
-
-    itens.sort(key=lambda x: x["Score"], reverse=True)
-    return itens
-
-# Configurações de Email
-EMAIL_SENDER = os.getenv("EMAIL_SENDER", "edgard.1706@gmail.com")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "kxgf ycdk bnnj ibov")
-EMAIL_RECIPIENT = os.getenv("EMAIL_RECIPIENT", "edgard.1706@gmail.com")
+# Email
+EMAIL_SENDER = os.getenv("EMAIL_SENDER", "")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
+EMAIL_RECIPIENT = os.getenv("EMAIL_RECIPIENT", "")
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
+# Caminhos
+CAMINHO_HTML = "relatorio_monitor.html"
+CAMINHO_DATA = "data/current-analysis.json"
+
+# ============================================================================
+# FUNÇÕES AUXILIARES
+# ============================================================================
+
+def agora_brt():
+    """Retorna datetime atual em BRT (Brasília)"""
+    return datetime.now(BRT)
+
+def buscar_dados(ticker, periodo="5y"):
+    """Busca dados históricos de um ativo via Yahoo Finance"""
+    try:
+        df = yf.download(ticker, period=periodo, interval="1d", progress=False)
+        if df is not None and len(df) > 0:
+            return df
+    except Exception as e:
+        print(f"  ⚠️  Erro ao buscar {ticker}: {str(e)}")
+    return None
+
+def calcular_medias(df):
+    """Calcula SMA17 e SMA72"""
+    if df is None or len(df) < 72:
+        return None
+    
+    df = df.copy()
+    df['SMA17'] = df['Close'].rolling(window=17).mean()
+    df['SMA72'] = df['Close'].rolling(window=72).mean()
+    
+    return df
+
+def detectar_cruzamentos(df, ativo, carteira):
+    """Detecta cruzamentos de SMA17 × SMA72 nos últimos 14 dias"""
+    if df is None or len(df) < 2:
+        return []
+    
+    sinais = []
+    data_limite = agora_brt().date() - timedelta(days=14)
+    
+    # Iterar pelos últimos dias
+    for i in range(len(df) - 1, 1, -1):
+        data_candle = df.index[i].date()
+        
+        if data_candle < data_limite:
+            break
+        
+        sma17_anterior = df['SMA17'].iloc[i - 1]
+        sma72_anterior = df['SMA72'].iloc[i - 1]
+        sma17_atual = df['SMA17'].iloc[i]
+        sma72_atual = df['SMA72'].iloc[i]
+        
+        # Validar dados
+        if pd.isna([sma17_anterior, sma72_anterior, sma17_atual, sma72_atual]).any():
+            continue
+        
+        preco = float(df['Close'].iloc[i])
+        
+        # Cruzamento de COMPRA (SMA17 cruza acima de SMA72)
+        if sma17_anterior <= sma72_anterior and sma17_atual > sma72_atual:
+            sinais.append({
+                "Carteira": carteira,
+                "Ativo": ativo,
+                "Sinal": "🟢 COMPRA",
+                "Preco": round(preco, 2),
+                "Data": data_candle.strftime('%d/%m/%Y'),
+                "SMA17": round(float(sma17_atual), 2),
+                "SMA72": round(float(sma72_atual), 2),
+            })
+        
+        # Cruzamento de VENDA (SMA17 cruza abaixo de SMA72)
+        elif sma17_anterior >= sma72_anterior and sma17_atual < sma72_atual:
+            sinais.append({
+                "Carteira": carteira,
+                "Ativo": ativo,
+                "Sinal": "🔴 VENDA",
+                "Preco": round(preco, 2),
+                "Data": data_candle.strftime('%d/%m/%Y'),
+                "SMA17": round(float(sma17_atual), 2),
+                "SMA72": round(float(sma72_atual), 2),
+            })
+    
+    return sinais
+
 def enviar_email_alerta(sinais_finais):
-    """Envia notificação de cruzamento via email com análise do Gemini"""
-    # Validar se as credenciais estão presentes
+    """Envia alerta por email com os cruzamentos detectados"""
+    
     if not EMAIL_SENDER or not EMAIL_PASSWORD or not EMAIL_RECIPIENT:
-        print("  [ERRO] Credenciais de email não configuradas!")
-        print("  [INFO] Configure as variáveis de ambiente ou secrets do GitHub")
+        print("  ⚠️  Credenciais de email não configuradas!")
+        return False
+    
+    if not sinais_finais:
+        print("  ℹ️  Nenhum sinal para enviar por email")
         return False
     
     try:
-        # Analisar sinais com Gemini
-        analise_gemini = analisar_com_gemini(sinais_finais)
-        
-        # Preparar mensagem
+        # Preparar email
         msg = MIMEMultipart()
         msg['From'] = EMAIL_SENDER
         msg['To'] = EMAIL_RECIPIENT
-        msg['Subject'] = f"[ALERTA] Cruzamento de Médias Móveis - {agora_brt().strftime('%d/%m/%Y %H:%M')}"
-
-        # Corpo do email em HTML
-        corpo = """
-<html>
-<head>
-<style>
-body { font-family: Arial, sans-serif; color: #111827; margin: 0; padding: 0; }
-.wrap { width: 100%; background: #f3f4f6; padding: 24px 0; }
-.container { width: 680px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; }
-.header { background: #0f172a; color: #ffffff; padding: 16px 20px; }
-.header h2 { margin: 0; font-size: 18px; }
-.meta { font-size: 12px; color: #cbd5e1; margin-top: 6px; }
-.section { padding: 16px 20px; }
-.section-title { font-size: 14px; letter-spacing: .4px; text-transform: uppercase; color: #475569; margin: 0 0 8px; }
-.card { background: #f8fafc; border: 1px solid #e5e7eb; padding: 12px; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th { background: #111827; color: #ffffff; text-align: left; padding: 8px; font-weight: 600; }
-td { padding: 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
-.row-buy { background: #e8f5e9; }
-.row-sell { background: #fdecea; }
-.pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: #e2e8f0; color: #334155; }
-.muted { color: #64748b; }
-a { color: #2563eb; text-decoration: none; }
-.footer { padding: 14px 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #64748b; }
-</style>
-</head>
-<body>
-<div class="wrap">
-    <div class="container">
-        <div class="header">
-            <h2>Relatório de Cruzamento de Médias</h2>
-            <div class="meta">{DATA_HORA}</div>
-        </div>
+        msg['Subject'] = f"🔔 [ALERTA] Cruzamentos de Médias - {agora_brt().strftime('%d/%m/%Y %H:%M')}"
+        
+        # Montar tabela de sinais
+        corpo_html = """
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+                .container { background: white; padding: 30px; border-radius: 8px; max-width: 800px; margin: 0 auto; }
+                h2 { color: #333; border-bottom: 3px solid #0366d6; padding-bottom: 10px; }
+                table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                th { background: #0366d6; color: white; padding: 12px; text-align: left; }
+                td { padding: 10px; border-bottom: 1px solid #ddd; }
+                tr:hover { background: #f9f9f9; }
+                .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+                .link { color: #0366d6; text-decoration: none; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>🔔 Relatório de Cruzamentos de Médias Móveis</h2>
+                <p><strong>Data/Hora:</strong> {DATA_HORA}</p>
+                <p><strong>Sinais detectados nos últimos 14 dias:</strong> {TOTAL}</p>
+                
+                <table>
+                    <tr>
+                        <th>Ativo</th>
+                        <th>Carteira</th>
+                        <th>Sinal</th>
+                        <th>Preço</th>
+                        <th>Data</th>
+                        <th>SMA17</th>
+                        <th>SMA72</th>
+                    </tr>
         """
-        corpo = corpo.replace("{DATA_HORA}", agora_brt().strftime('%d/%m/%Y %H:%M:%S BRT'))
-
-        # Tabela de sinais
-        corpo += "<div class='section'>"
-        corpo += "<div class='section-title'>Sinais detectados</div>"
-        corpo += "<table style='table-layout: fixed; width: 100%;'>"
-        corpo += "<tr><th style='width:20%'>Ativo</th><th style='width:25%'>Carteira</th><th style='width:20%'>Sinal</th><th style='width:15%'>Preço</th><th style='width:20%'>Data</th></tr>"
+        
+        corpo_html = corpo_html.replace("{DATA_HORA}", agora_brt().strftime('%d/%m/%Y %H:%M:%S'))
+        corpo_html = corpo_html.replace("{TOTAL}", str(len(sinais_finais)))
+        
         for item in sinais_finais:
-            row_class = "row-buy" if "COMPRA" in item['Sinal'] else "row-sell"
-            corpo += f"<tr class='{row_class}'>"
-            corpo += f"<td><strong>{item['Ativo']}</strong></td>"
-            corpo += f"<td>{item['Carteira']}</td>"
-            corpo += f"<td><strong>{item['Sinal']}</strong></td>"
-            corpo += f"<td>R$ {item['Preco']}</td>"
-            corpo += f"<td>{item.get('Data', 'N/A')}</td>"
-            corpo += "</tr>"
+            corpo_html += f"""
+                    <tr>
+                        <td><strong>{item['Ativo']}</strong></td>
+                        <td>{item['Carteira']}</td>
+                        <td><strong>{item['Sinal']}</strong></td>
+                        <td>R$ {item['Preco']}</td>
+                        <td>{item['Data']}</td>
+                        <td>{item['SMA17']}</td>
+                        <td>{item['SMA72']}</td>
+                    </tr>
+            """
         
-        corpo += "</table>"
-        corpo += "</div>"
-
-        # Análise do Gemini + contexto
-        if analise_gemini:
-            # Processar análise: separar por ativo e adicionar formatação
-            linhas = analise_gemini.split('\n')
-            analise_formatada = ""
-            for linha in linhas:
-                linha = linha.strip()
-                if not linha:
-                    continue
-                # Se linha começa com nome de ativo (tem : no início), destacar
-                if ':' in linha:
-                    idx_colon = linha.index(':')
-                    if idx_colon < 25:  # Provavelmente é um nome de ativo
-                        nome_ativo = linha[:idx_colon]
-                        resto = linha[idx_colon+1:].strip()
-                        analise_formatada += f"<div style='margin-bottom:14px;'><strong style='color:#0f172a; font-size:14px;'>{nome_ativo}:</strong><br><span style='line-height:1.6; color:#374151;'>{resto}</span></div>"
-                        continue
-                # Linha comum
-                analise_formatada += f"<div style='margin-bottom:8px; line-height:1.6; color:#374151;'>{linha}</div>"
-            
-            corpo += "<div class='section'>"
-            corpo += "<div class='section-title'>Análise por IA (Gemini)</div>"
-            corpo += f"<div class='card' style='line-height:1.7;'>{analise_formatada}</div>"
-
-            corpo += "<div class='section-title' style='margin-top:12px;'>Contexto por ativo</div>"
-            corpo += "<div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;'>"
-
-            for item in sinais_finais:
-                ativo = item.get("Ativo", "")
-                carteira = item.get("Carteira", "")
-                data_str = item.get("Data", "")
-                dias = _dias_desde(data_str)
-                dias_txt = f"{dias}d" if dias is not None else "N/A"
-
-                preco = item.get("Preco", "N/A")
-                sma17 = item.get("SMA17", "N/A")
-                sma72 = item.get("SMA72", "N/A")
-                dist = item.get("Distancia", "N/A")
-
-                minimo = item.get("Minimo (5y)", "N/A")
-                maximo = item.get("Maximo (5y)", "N/A")
-
-                fundamentos = _fundamentos_ativo(ativo)
-                setor = fundamentos.get("sector") or "N/A"
-                industria = fundamentos.get("industry") or "N/A"
-                pe = fundamentos.get("trailingPE")
-                pe_txt = f"{pe:.2f}" if isinstance(pe, (int, float)) else "N/A"
-                dy = fundamentos.get("dividendYield")
-                dy_txt = f"{dy*100:.2f}%" if isinstance(dy, (int, float)) else "N/A"
-                mcap = _formatar_marketcap(fundamentos.get("marketCap"))
-
-                corpo += f"""
-                <div class='card'>
-                  <h4 style='margin:0 0 8px; color:#0f172a;'>{ativo}</h4>
-                  <div style='font-size:12px; color:#64748b; margin-bottom:8px;'>{carteira}</div>
-                  <div style='margin:6px 0;'><strong>Cruzamento:</strong> {data_str} (há {dias_txt})</div>
-                  <div style='margin:6px 0;'><strong>Preço:</strong> R$ {preco}</div>
-                  <div style='margin:6px 0;'><strong>SMAs:</strong> SMA17: {sma17} | SMA72: {sma72}</div>
-                  <div style='margin:6px 0;'><strong>Distância:</strong> {dist}</div>
-                  <div style='margin:6px 0;'><strong>Faixa 5y:</strong> Mín {minimo} | Máx {maximo}</div>
-                  <hr style='border:none; border-top:1px solid #e5e7eb; margin:8px 0;'>
-                  <div style='font-size:11px; color:#475569;'>
-                    <div><strong>Setor:</strong> {setor}</div>
-                    <div><strong>Indústria:</strong> {industria}</div>
-                    <div><strong>P/L:</strong> {pe_txt} | <strong>DY:</strong> {dy_txt}</div>
-                    <div><strong>Market Cap:</strong> {mcap}</div>
-                  </div>
+        corpo_html += """
+                </table>
+                
+                <div class="footer">
+                    <p>📊 <a href="https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html" class="link">Ver relatório completo</a></p>
+                    <p>Este é um email automático do sistema <strong>Vigilante</strong>.</p>
                 </div>
-                """
-
-            corpo += "</div>"
-            ranking_noticias = _montar_links_noticias(sinais_finais)
-            if ranking_noticias:
-                corpo += "<div class='section-title' style='margin-top:12px;'>Notícias priorizadas</div>"
-                corpo += "<ol>"
-                for item in ranking_noticias:
-                    corpo += (f"<li><strong>{item['Ativo']}</strong> "
-                              f"<span class='pill'>score {item['Score']}</span> "
-                              f"<a href='{item['Url']}'>Ver notícias</a></li>")
-                corpo += "</ol>"
-            corpo += "</div>"
+            </div>
+        </body>
+        </html>
+        """
         
-        corpo += "<div class='footer'>📊 Relatório completo: <a href='https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html'>https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html</a></div>"
-        corpo += "</div></div></body></html>"
-        
-        msg.attach(MIMEText(corpo, 'html'))
+        msg.attach(MIMEText(corpo_html, 'html'))
         
         # Enviar email
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
@@ -400,562 +211,353 @@ a { color: #2563eb; text-decoration: none; }
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.send_message(msg)
         
-        print(f"  [EMAIL] Alerta enviado com sucesso para {EMAIL_RECIPIENT}")
+        print(f"  ✅ Email enviado com sucesso para {EMAIL_RECIPIENT}")
         return True
-        
-    except smtplib.SMTPAuthenticationError as e:
-        print(f"  [ERRO] Falha na autenticação SMTP: {str(e)}")
-        print("  [INFO] Verifique se:")
-        print("  [INFO]   1. As credenciais EMAIL_SENDER e EMAIL_PASSWORD estão corretas")
-        print("  [INFO]   2. Você está usando uma 'Senha de app' do Gmail, não sua senha normal")
-        print("  [INFO]   3. Gere uma senha de app em: https://myaccount.google.com/apppasswords")
-        print("  [INFO]   4. A verificação em 2 etapas está ativada na conta do Gmail")
-        return False
-    except smtplib.SMTPConnectError as e:
-        print(f"  [ERRO] Falha ao conectar ao servidor SMTP: {str(e)}")
-        print("  [INFO] Possíveis causas:")
-        print("  [INFO]   1. Servidor SMTP indisponível ou inacessível")
-        print("  [INFO]   2. Firewall ou proxy bloqueando a porta 587")
-        print("  [INFO]   3. Problema de rede temporário - tente novamente mais tarde")
-        return False
-    except smtplib.SMTPServerDisconnected as e:
-        print(f"  [ERRO] Servidor SMTP desconectou durante o envio: {str(e)}")
-        print("  [INFO] O servidor pode estar sobrecarregado ou com problemas temporários")
-        return False
-    except smtplib.SMTPException as e:
-        print(f"  [ERRO] Erro SMTP ao enviar email: {str(e)}")
-        print("  [INFO] Verifique:")
-        print("  [INFO]   1. Se o email do remetente é válido")
-        print("  [INFO]   2. Se o email do destinatário é válido")
-        print("  [INFO]   3. Logs acima para mais detalhes do erro")
-        return False
+    
     except Exception as e:
-        print(f"  [ERRO] Falha inesperada ao enviar email: {str(e)}")
-        print("  [INFO] Erro não relacionado ao SMTP - verifique configurações de rede")
+        print(f"  ❌ Erro ao enviar email: {str(e)}")
         return False
 
-def gerar_html(relatorios_por_carteira, charts_data):
-    titulo = f"Relatório de Médias Móveis - {agora_brt().strftime('%d/%m/%Y %H:%M')}"
-    html_tabelas = ""
+# ============================================================================
+# GERAÇÃO DE HTML
+# ============================================================================
+
+def gerar_html(relatorios_por_carteira):
+    """Gera HTML com o relatório de médias móveis"""
     
-    for carteira, df_relatorio in relatorios_por_carteira.items():
-        html_tabelas += f"<h3>{carteira}</h3>\n"
-        if not df_relatorio.empty:
-            # Criar HTML customizado para a tabela
-            html_tabelas += "<table>\n<thead>\n<tr>"
-            html_tabelas += "<th>Ativo</th><th>Abertura</th><th>Fechamento</th><th>Sinal</th>"
-            html_tabelas += "<th>SMA17</th><th>SMA72</th><th>Distancia</th><th>Ultimo Cruzamento</th>"
-            html_tabelas += "<th>Minimo (5y)</th><th>Maximo (5y)</th>"
-            html_tabelas += "</tr>\n</thead>\n<tbody>\n"
-            
-            for _, row in df_relatorio.iterrows():
-                sinal_class = "compra" if "COMPRA" in str(row['Sinal']) else "venda" if "VENDA" in str(row['Sinal']) else "neutro"
-                tooltip = "COMPRA: SMA17 esta acima de SMA72 (tendencia de alta)" if "COMPRA" in str(row['Sinal']) else \
-                          "VENDA: SMA17 esta abaixo de SMA72 (tendencia de baixa)" if "VENDA" in str(row['Sinal']) else \
-                          "NEUTRO: Medias estao no mesmo nivel"
-                
-                html_tabelas += f"<tr>"
-                html_tabelas += f"<td><button class='asset-link' onclick=\"openChart('{row['Ativo']}')\">{row['Ativo']}</button></td>"
-                html_tabelas += f"<td>R$ {row['Abertura']:.2f}</td>"
-                html_tabelas += f"<td>R$ {row['Fechamento']:.2f}</td>"
-                html_tabelas += f"<td title='{tooltip}' class='{sinal_class}'>{row['Sinal']}</td>"
-                html_tabelas += f"<td>{row['SMA17']:.2f}</td>"
-                html_tabelas += f"<td>{row['SMA72']:.2f}</td>"
-                html_tabelas += f"<td>{row['Distancia']:.2f}</td>"
-                html_tabelas += f"<td>{row['Ultimo Cruzamento']}</td>"
-                html_tabelas += f"<td>R$ {row['Minimo (5y)']:.2f}</td>"
-                html_tabelas += f"<td>R$ {row['Maximo (5y)']:.2f}</td>"
-                html_tabelas += f"</tr>\n"
-            
-            html_tabelas += "</tbody>\n</table>\n"
-        else:
-            html_tabelas += f"<p style='text-align: center; color: #999;'>Nenhum dado disponível nesta carteira.</p>\n"
-        html_tabelas += "<br>"
-    
-    html = f"""<!DOCTYPE html>
+    html = """<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatorio de Medias Moveis</title>
+    <title>Vigilante - Monitor de Médias Móveis</title>
     <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-        
-        body {{ 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            padding: 30px;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-        }}
-        
-        .container {{
-            max-width: 1400px;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
             margin: 0 auto;
-        }}
-        
-        h2 {{ 
-            margin-bottom: 30px;
-            color: #2c3e50;
-            text-align: center;
-            font-size: 28px;
-            border-bottom: 4px solid #0366d6;
-            padding-bottom: 15px;
-        }}
-        
-        h3 {{
-            margin-top: 30px;
-            margin-bottom: 15px;
-            color: #fff;
-            background: linear-gradient(135deg, #0366d6, #0549a0);
-            padding: 12px 20px;
-            border-radius: 5px;
-            font-size: 18px;
-        }}
-        
-        table {{ 
-            border-collapse: collapse; 
-            width: 100%; 
-            margin-bottom: 25px;
-            background-color: white;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            border-radius: 5px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.3);
             overflow: hidden;
-        }}
-        
-        thead {{
-            background: #2c3e50;
-        }}
-        
-        th {{
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 14px;
+            padding: 30px 40px;
             text-align: center;
-            font-weight: 600;
-            border-right: 1px solid #ecf0f1;
-            font-size: 13px;
-        }}
-        
-        th:last-child {{
-            border-right: none;
-        }}
-        
-        td {{
-            padding: 12px 14px;
-            text-align: center;
-            border-right: 1px solid #ecf0f1;
+        }
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+        .header p {
             font-size: 14px;
-        }}
-        
-        td:last-child {{
-            border-right: none;
-        }}
-        
-        tbody tr {{
-            border-bottom: 1px solid #ecf0f1;
-            transition: background-color 0.3s ease;
-        }}
-        
-        tbody tr:hover {{
-            background-color: #f8f9fa;
-        }}
-        
-        tbody tr:last-child {{
-            border-bottom: none;
-        }}
-        
-        .compra {{
-            background-color: #d4edda;
-            color: #155724;
-            font-weight: bold;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: help;
-        }}
-        
-        .venda {{
-            background-color: #f8d7da;
-            color: #721c24;
-            font-weight: bold;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: help;
-        }}
-        
-        .neutro {{
-            background-color: #e2e3e5;
-            color: #383d41;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: help;
-        }}
-        
-        td[title] {{
-            position: relative;
-        }}
-        
-        strong {{
-            color: #0366d6;
-        }}
-        
-        .footer {{
-            text-align: center;
-            margin-top: 40px;
-            color: #7f8c8d;
+            opacity: 0.9;
+        }
+        .timestamp {
+            display: block;
             font-size: 12px;
-        }}
-        .asset-link {{
-            background: none;
-            border: none;
-            color: #0366d6;
-            font-weight: 700;
-            cursor: pointer;
-            text-decoration: underline;
-        }}
-        .modal {{
-            display: none;
-            position: fixed;
-            z-index: 999;
-            left: 0;
-            top: 0;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+        .content {
+            padding: 40px;
+        }
+        .carteira-section {
+            margin-bottom: 40px;
+        }
+        .carteira-title {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+        table {
             width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.75);
-        }}
-        .modal-content {{
-            background-color: #0d1117;
-            margin: 5% auto;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th {
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #ddd;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+        }
+        tr:hover {
+            background: #f9f9f9;
+        }
+        .compra {
+            background: #d4edda;
+            color: #155724;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .venda {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .neutro {
+            background: #e2e3e5;
+            color: #383d41;
+            padding: 6px 12px;
+            border-radius: 4px;
+        }
+        .footer {
+            background: #f5f5f5;
+            padding: 20px 40px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             padding: 20px;
             border-radius: 8px;
-            width: 90%;
-            max-width: 1100px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-        }}
-        .modal-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: #c9d1d9;
-            margin-bottom: 10px;
-        }}
-        .modal-close {{
-            color: #c9d1d9;
+            text-align: center;
+        }
+        .stat-card strong {
             font-size: 24px;
-            font-weight: bold;
-            cursor: pointer;
-            border: none;
-            background: transparent;
-        }}
-        #chart {{
-            width: 100%;
-            height: 520px;
-        }}
+            display: block;
+            margin-top: 10px;
+        }
+        @media (max-width: 768px) {
+            .header { padding: 20px; }
+            .header h1 { font-size: 24px; }
+            .content { padding: 20px; }
+        }
     </style>
-    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h2>{titulo}</h2>
-        {html_tabelas if html_tabelas.strip() else '<p style="text-align: center; color: #7f8c8d;">Nenhum dado disponivel no momento.</p>'}
-        <div class="footer">
-            <p>Atualizado automaticamente todos os dias as 18:30 BRT</p>
-            <p>SMA17: Media Movel de 17 periodos | SMA50: Media Movel de 50 periodos</p>
+        <div class="header">
+            <h1>📊 VIGILANTE</h1>
+            <p>Monitor de Cruzamentos de Médias Móveis (SMA17 × SMA72)</p>
+            <span class="timestamp">Atualizado em {TIMESTAMP}</span>
         </div>
-    </div>
-    <div id="chartModal" class="modal" onclick="closeChart(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3 id="chartTitle">Grafico</h3>
-                <button class="modal-close" onclick="closeChart()">&times;</button>
+        
+        <div class="content">
+            <div class="stats">
+                <div class="stat-card">
+                    <div>Total de Carteiras</div>
+                    <strong>{TOTAL_CARTEIRAS}</strong>
+                </div>
+                <div class="stat-card">
+                    <div>Total de Ativos</div>
+                    <strong>{TOTAL_ATIVOS}</strong>
+                </div>
+                <div class="stat-card">
+                    <div>Sinais COMPRA</div>
+                    <strong>{TOTAL_COMPRA}</strong>
+                </div>
+                <div class="stat-card">
+                    <div>Sinais VENDA</div>
+                    <strong>{TOTAL_VENDA}</strong>
+                </div>
             </div>
-            <div id="chart"></div>
-        </div>
-    </div>
-    <script>
-        const chartsData = {json.dumps(charts_data, ensure_ascii=False)};
-
-        function openChart(ativo) {{
-            const data = chartsData[ativo];
-            if (!data) return;
-
-            document.getElementById('chartTitle').textContent = `TradingView Style - ${'{'}ativo{'}'}`;
-            document.getElementById('chartModal').style.display = 'block';
-
-            const closeTrace = {{
-                x: data.dates,
-                y: data.close,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Preço',
-                line: {{ color: '#2dd4bf', width: 2 }}
-            }};
-            const sma17Trace = {{
-                x: data.dates,
-                y: data.sma17,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'SMA17',
-                line: {{ color: '#f59e0b', width: 1.5 }}
-            }};
-            const sma72Trace = {{
-                x: data.dates,
-                y: data.sma72,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'SMA72',
-                line: {{ color: '#ef4444', width: 1.5 }}
-            }};
-
-            const layout = {{
-                paper_bgcolor: '#0d1117',
-                plot_bgcolor: '#0d1117',
-                font: {{ color: '#c9d1d9' }},
-                xaxis: {{
-                    showgrid: true,
-                    gridcolor: '#1f2937',
-                    rangeslider: {{ visible: false }}
-                }},
-                yaxis: {{
-                    showgrid: true,
-                    gridcolor: '#1f2937'
-                }},
-                legend: {{ orientation: 'h', y: -0.2 }},
-                margin: {{ t: 30, r: 20, b: 60, l: 50 }}
-            }};
-
-            Plotly.newPlot('chart', [closeTrace, sma17Trace, sma72Trace], layout, {{ responsive: true }});
-        }}
-
-        function closeChart(event) {{
-            document.getElementById('chartModal').style.display = 'none';
-            Plotly.purge('chart');
-        }}
-    </script>
-</body>
-</html>"""
+    """
+    
+    # Calcular estatísticas
+    total_carteiras = len(relatorios_por_carteira)
+    total_ativos = sum(len(df) if not df.empty else 0 for df in relatorios_por_carteira.values())
+    total_compra = 0
+    total_venda = 0
+    
+    # Gerar tabelas por carteira
+    for carteira, df in relatorios_por_carteira.items():
+        if df.empty:
+            continue
+        
+        html += f'<div class="carteira-section">'
+        html += f'<h2 class="carteira-title">{carteira}</h2>'
+        html += '<table>'
+        html += '<tr>'
+        html += '<th>Ativo</th>'
+        html += '<th>Abertura</th>'
+        html += '<th>Fechamento</th>'
+        html += '<th>Sinal</th>'
+        html += '<th>SMA17</th>'
+        html += '<th>SMA72</th>'
+        html += '<th>Mínimo (5y)</th>'
+        html += '<th>Máximo (5y)</th>'
+        html += '</tr>'
+        
+        for _, row in df.iterrows():
+            sinal = row['Sinal']
+            sinal_class = 'compra' if 'COMPRA' in str(sinal) else ('venda' if 'VENDA' in str(sinal) else 'neutro')
+            
+            if 'COMPRA' in str(sinal):
+                total_compra += 1
+            elif 'VENDA' in str(sinal):
+                total_venda += 1
+            
+            html += f'<tr>'
+            html += f'<td><strong>{row["Ativo"]}</strong></td>'
+            html += f'<td>R$ {row["Abertura"]:.2f}</td>'
+            html += f'<td>R$ {row["Fechamento"]:.2f}</td>'
+            html += f'<td><span class="{sinal_class}">{sinal}</span></td>'
+            html += f'<td>{row["SMA17"]:.2f}</td>'
+            html += f'<td>{row["SMA72"]:.2f}</td>'
+            html += f'<td>R$ {row["Minimo (5y)"]:.2f}</td>'
+            html += f'<td>R$ {row["Maximo (5y)"]:.2f}</td>'
+            html += f'</tr>'
+        
+        html += '</table>'
+        html += '</div>'
+    
+    html += '</div>'
+    html += f'<div class="footer">'
+    html += f'<p>Atualizado em {agora_brt().strftime("%d/%m/%Y às %H:%M:%S")} BRT</p>'
+    html += f'<p>🤖 Sistema automatizado • Próxima atualização em aproximadamente 1 hora</p>'
+    html += f'</div>'
+    html += '</body>'
+    html += '</html>'
+    
+    # Substituir placeholders
+    html = html.replace("{TIMESTAMP}", agora_brt().strftime("%d/%m/%Y às %H:%M:%S BRT"))
+    html = html.replace("{TOTAL_CARTEIRAS}", str(total_carteiras))
+    html = html.replace("{TOTAL_ATIVOS}", str(total_ativos))
+    html = html.replace("{TOTAL_COMPRA}", str(total_compra))
+    html = html.replace("{TOTAL_VENDA}", str(total_venda))
+    
     return html
 
+# ============================================================================
+# PROCESSAMENTO PRINCIPAL
+# ============================================================================
 
-def processar_diario():
-    print(f"\n=== Iniciando Varredura de Fechamento: {agora_brt().strftime('%d/%m/%Y')} ===\n")
-    relatorios_por_carteira = {carteira: [] for carteira in CARTEIRAS}
-    charts_data = {}
+def processar_analise():
+    """Executa a análise completa de uma vez"""
+    
+    print(f"\n{'='*60}")
+    print(f"  🚀 INICIANDO ANÁLISE - {agora_brt().strftime('%d/%m/%Y %H:%M:%S BRT')}")
+    print(f"{'='*60}\n")
+    
+    relatorios_por_carteira = {}
     sinais_finais = []
-
-    def _series(col_name, data_frame):
-        series = data_frame[col_name]
-        if isinstance(series, pd.DataFrame):
-            series = series.iloc[:, 0]
-        return series
-
+    
+    # Processar cada carteira
     for carteira, ativos in CARTEIRAS.items():
-        print(f"\n[*] Processando {carteira}...")
+        print(f"📂 Carteira: {carteira}")
+        relatorios_por_carteira[carteira] = []
+        
         for ativo in ativos:
-            try:
-                # Pega dados diários usando função com fallback
-                df = fetch_data(ativo)
-                
-                if df is None or len(df) < 72:
-                    print(f"  [AVISO] {ativo}: Dados insuficientes")
-                    continue
-
-                # Médias
-                df['SMA17'] = df['Close'].rolling(window=17).mean()
-                df['SMA72'] = df['Close'].rolling(window=72).mean()
-                
-                # Encontrar o último cruzamento
-                df['Cruzamento'] = (df['SMA17'] > df['SMA72']).astype(int).diff()
-                cruzamentos = df[df['Cruzamento'] != 0]
-                
-                if len(cruzamentos) > 0:
-                    ultima_data_cruzamento = cruzamentos.index[-1].strftime('%d/%m/%Y')
-                    data_ultimo_cruzamento = cruzamentos.index[-1]
-                else:
-                    ultima_data_cruzamento = "Sem dados"
-                    data_ultimo_cruzamento = df.index[-1]
-                
-                # Pegar dados desde 1 ano antes do último cruzamento
-                from datetime import timedelta
-                data_inicio = data_ultimo_cruzamento - timedelta(days=365)
-                df_chart = df[df.index >= data_inicio].copy()
-
-                # Últimos 2 dias para detectar o cruzamento no fechamento
-                sma17_penultima = df['SMA17'].iloc[-2]
-                sma72_penultima = df['SMA72'].iloc[-2]
-                sma17_ultima = df['SMA17'].iloc[-1]
-                sma72_ultima = df['SMA72'].iloc[-1]
-                fechamento_ultimo = df['Close'].iloc[-1]
-                abertura_ultima = df['Open'].iloc[-1]
-                menor_preco = df['Low'].min()
-                maior_preco = df['High'].max()
-                
-                # Converter para float se necessário
-                if hasattr(abertura_ultima, 'item'):
-                    abertura_ultima = abertura_ultima.item()
-                if hasattr(fechamento_ultimo, 'item'):
-                    fechamento_ultimo = fechamento_ultimo.item()
-                if hasattr(sma17_ultima, 'item'):
-                    sma17_ultima = sma17_ultima.item()
-                if hasattr(sma72_ultima, 'item'):
-                    sma72_ultima = sma72_ultima.item()
-                if hasattr(sma17_penultima, 'item'):
-                    sma17_penultima = sma17_penultima.item()
-                if hasattr(sma72_penultima, 'item'):
-                    sma72_penultima = sma72_penultima.item()
-                if hasattr(menor_preco, 'item'):
-                    menor_preco = menor_preco.item()
-                if hasattr(maior_preco, 'item'):
-                    maior_preco = maior_preco.item()
-
-                if pd.isna([sma17_penultima, sma72_penultima, sma17_ultima, sma72_ultima]).any():
-                    continue
-
-                # Lógica baseada na posição das médias
-                if sma17_ultima > sma72_ultima:
-                    status = "COMPRA"
-                elif sma17_ultima < sma72_ultima:
-                    status = "VENDA"
-                else:
-                    status = "Neutro"
-                
-                # Detectar cruzamentos nos últimos 14 dias para alertas
-                from datetime import timedelta
-                data_limite = agora_brt().date() - timedelta(days=14)
-                
-                # Iterar por todos os dias nos últimos 14 dias
-                for i in range(len(df)-1, 1, -1):
-                    data_candle = df.index[i].date()
-                    if data_candle < data_limite:
-                        break
-                    
-                    sma17_anterior = df['SMA17'].iloc[i-1]
-                    sma72_anterior = df['SMA72'].iloc[i-1]
-                    sma17_atual = df['SMA17'].iloc[i]
-                    sma72_atual = df['SMA72'].iloc[i]
-                    
-                    if pd.isna([sma17_anterior, sma72_anterior, sma17_atual, sma72_atual]).any():
-                        continue
-                    
-                    # Cruzamento de COMPRA (SMA17 cruza acima de SMA72)
-                    if sma17_anterior <= sma72_anterior and sma17_atual > sma72_atual:
-                        data_cruzamento = df.index[i].strftime('%d/%m/%Y')
-                        sinais_finais.append({
-                            "Carteira": carteira,
-                            "Ativo": ativo,
-                            "Sinal": "COMPRA",
-                            "Preco": round(fechamento_ultimo, 2),
-                            "Data": data_cruzamento,
-                            "SMA17": round(float(sma17_ultima), 2),
-                            "SMA72": round(float(sma72_ultima), 2),
-                            "Distancia": round(abs(float(sma17_ultima) - float(sma72_ultima)), 2),
-                            "Minimo (5y)": round(float(menor_preco), 2),
-                            "Maximo (5y)": round(float(maior_preco), 2)
-                        })
-                    # Cruzamento de VENDA (SMA17 cruza abaixo de SMA72)
-                    elif sma17_anterior >= sma72_anterior and sma17_atual < sma72_atual:
-                        data_cruzamento = df.index[i].strftime('%d/%m/%Y')
-                        sinais_finais.append({
-                            "Carteira": carteira,
-                            "Ativo": ativo,
-                            "Sinal": "VENDA",
-                            "Preco": round(fechamento_ultimo, 2),
-                            "Data": data_cruzamento,
-                            "SMA17": round(float(sma17_ultima), 2),
-                            "SMA72": round(float(sma72_ultima), 2),
-                            "Distancia": round(abs(float(sma17_ultima) - float(sma72_ultima)), 2),
-                            "Minimo (5y)": round(float(menor_preco), 2),
-                            "Maximo (5y)": round(float(maior_preco), 2)
-                        })
-
-                relatorios_por_carteira[carteira].append({
-                    "Ativo": ativo,
-                    "Abertura": round(float(abertura_ultima), 2),
-                    "Fechamento": round(float(fechamento_ultimo), 2),
-                    "Sinal": status,
-                    "SMA17": round(float(sma17_ultima), 2),
-                    "SMA72": round(float(sma72_ultima), 2),
-                    "Distancia": round(abs(float(sma17_ultima) - float(sma72_ultima)), 2),
-                    "Ultimo Cruzamento": ultima_data_cruzamento,
-                    "Minimo (5y)": round(float(menor_preco), 2),
-                    "Maximo (5y)": round(float(maior_preco), 2)
-                })
-                # Guardar dados para o grafico (ultimo 180 dias)
-                # Guardar dados para o grafico
-                df_chart = df[df.index >= data_inicio].copy()
-                close_series = _series('Close', df_chart)
-                sma17_series = _series('SMA17', df_chart)
-                sma72_series = _series('SMA72', df_chart)
-                charts_data[ativo] = {
-                    "dates": [d.strftime('%Y-%m-%d') for d in df_chart.index],
-                    "close": [float(v) if not pd.isna(v) else None for v in close_series.tolist()],
-                    "sma17": [float(v) if not pd.isna(v) else None for v in sma17_series.tolist()],
-                    "sma72": [float(v) if not pd.isna(v) else None for v in sma72_series.tolist()]
-                }
-                print(f"  [OK] {ativo}: {status}")
-                
-            except Exception as e:
-                print(f"  [ERRO] {ativo}: {str(e)}")
+            # Buscar dados
+            df = buscar_dados(ativo)
+            if df is None:
+                print(f"  ❌ {ativo}: Dados não disponíveis")
                 continue
-
-    # --- RESULTADOS ---
-    # Converter para DataFrames
-    relatorios_df = {}
-    for carteira, dados in relatorios_por_carteira.items():
-        if dados:
-            relatorios_df[carteira] = pd.DataFrame(dados)
+            
+            # Calcular médias
+            df = calcular_medias(df)
+            if df is None:
+                print(f"  ❌ {ativo}: Não há dados suficientes")
+                continue
+            
+            # Extrair últimos valores
+            ultimo_fechamento = float(df['Close'].iloc[-1])
+            primeira_abertura = float(df['Open'].iloc[-1])
+            sma17_ultima = float(df['SMA17'].iloc[-1])
+            sma72_ultima = float(df['SMA72'].iloc[-1])
+            minimo_5y = float(df['Close'].min())
+            maximo_5y = float(df['Close'].max())
+            
+            # Determinar sinal atual
+            if sma17_ultima > sma72_ultima:
+                sinal = "🟢 COMPRA"
+            elif sma17_ultima < sma72_ultima:
+                sinal = "🔴 VENDA"
+            else:
+                sinal = "⚪ Neutro"
+            
+            # Adicionar ao relatório
+            relatorios_por_carteira[carteira].append({
+                "Ativo": ativo,
+                "Abertura": primeira_abertura,
+                "Fechamento": ultimo_fechamento,
+                "Sinal": sinal,
+                "SMA17": sma17_ultima,
+                "SMA72": sma72_ultima,
+                "Minimo (5y)": minimo_5y,
+                "Maximo (5y)": maximo_5y,
+            })
+            
+            # Detectar cruzamentos
+            cruzamentos = detectar_cruzamentos(df, ativo, carteira)
+            sinais_finais.extend(cruzamentos)
+            
+            print(f"  ✅ {ativo}: {sinal}")
+        
+        # Converter para DataFrame
+        if relatorios_por_carteira[carteira]:
+            relatorios_por_carteira[carteira] = pd.DataFrame(relatorios_por_carteira[carteira])
         else:
-            relatorios_df[carteira] = pd.DataFrame()
+            relatorios_por_carteira[carteira] = pd.DataFrame()
     
     # Gerar HTML
-    html = gerar_html(relatorios_df, charts_data)
+    print("\n📝 Gerando HTML...")
+    html = gerar_html(relatorios_por_carteira)
     with open(CAMINHO_HTML, "w", encoding="utf-8") as f:
         f.write(html)
-    print(f"\n[OK] HTML atualizado: {CAMINHO_HTML}")
-
+    print(f"  ✅ HTML atualizado: {CAMINHO_HTML}")
+    
+    # Salvar dados em JSON
+    print("💾 Salvando dados...")
+    os.makedirs("data", exist_ok=True)
+    data_para_salvar = {
+        "timestamp": agora_brt().isoformat(),
+        "sinais": sinais_finais,
+        "relatorios": {k: v.to_dict('records') for k, v in relatorios_por_carteira.items()}
+    }
+    with open(CAMINHO_DATA, "w", encoding="utf-8") as f:
+        json.dump(data_para_salvar, f, ensure_ascii=False, indent=2)
+    print(f"  ✅ Dados salvos: {CAMINHO_DATA}")
+    
+    # Alertas
     if sinais_finais:
-        print("\n[ALERTA] ATIVOS QUE CRUZARAM A MEDIA NOS ÚLTIMOS 14 DIAS:")
-        df_sinais = pd.DataFrame(sinais_finais)
-        print(df_sinais.to_string(index=False))
+        print(f"\n🔔 CRUZAMENTOS DETECTADOS: {len(sinais_finais)}")
+        for sinal in sinais_finais:
+            print(f"  {sinal['Ativo']} ({sinal['Carteira']}): {sinal['Sinal']} em {sinal['Data']}")
         
-        # Gera o alerta visual no Windows
-        mensagem = "\n".join([f"{item['Ativo']} ({item['Carteira']}): {item['Sinal']}" for item in sinais_finais])
-        if toaster:
-            toaster.show_toast("Alerta de Medias Moveis", 
-                               mensagem,
-                               duration=10)
-        
-        # Envia alerta por email apenas na última execução do dia (>= 19:00 BRT)
+        # Enviar email se for após 19:00 BRT
         agora = agora_brt()
         test_mode = os.getenv("TEST_EMAIL") == "1"
+        
         if test_mode or agora.hour >= 19:
+            print("\n📧 Enviando email de alerta...")
             enviar_email_alerta(sinais_finais)
-            if test_mode:
-                print("  [EMAIL] Email de teste disparado (TEST_EMAIL=1)")
         else:
-            print(f"  [EMAIL] Aguardando horário de envio (19:00 BRT). Atual: {agora.strftime('%H:%M')}")
+            print(f"\n⏰ Email será enviado após 19:00 BRT (atual: {agora.strftime('%H:%M')})")
     else:
-        print("\n[OK] Nenhum cruzamento de media detectado nos ativos selecionados nos últimos 14 dias.")
-
-
-def loop_diario():
-    ultima_execucao = None
-    while True:
-        agora = agora_brt()
-        horario_atual = agora.strftime("%H:%M")
-        data_atual = agora.date()
-
-        if horario_atual == HORARIO_EXECUCAO and ultima_execucao != data_atual:
-            processar_diario()
-            ultima_execucao = data_atual
-
-        time.sleep(30)
+        print("\n✅ Nenhum cruzamento detectado nos últimos 14 dias")
+    
+    print(f"\n{'='*60}")
+    print(f"  ✅ ANÁLISE CONCLUÍDA")
+    print(f"{'='*60}\n")
 
 if __name__ == "__main__":
-    if os.getenv("RUN_ONCE") == "1":
-        processar_diario()
-    else:
-        loop_diario()
+    processar_analise()

@@ -1,12 +1,17 @@
 {
-  "timestamp": "2026-02-11T03:00:00-03:00",
+  "timestamp": "2026-02-12T15:17:59.153381-03:00",
   "periodo_anos": 15,
-  "status": "aguardando",
+  "status": "completo",
   "resumo": {
-    "total_ativos": 0,
+    "total_ativos": 21,
     "ativos_analisados": 0,
     "rentabilidade_media": 0,
     "taxa_acerto_media": 0
   },
-  "carteiras": {}
+  "carteiras": {
+    "Carteira Ações": [],
+    "Carteira ETF": [],
+    "Watchlist": [],
+    "Especulação": []
+  }
 }
