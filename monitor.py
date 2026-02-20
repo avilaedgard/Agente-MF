@@ -46,17 +46,34 @@ def buscar_e_processar():
                 df = yf.download(ativo, period="5y", interval="1d", progress=False)
                 
                 if df is None or len(df) < 72:
-                    print("  [SKIP] " + ativo + ": Dados insuficientes")
+                    print("  [SKIP] " + ativo + ": Dados insuficientes ou None")
                     continue
                 
                 # Calcular SMA
                 df['SMA17'] = df['Close'].rolling(17).mean()
                 df['SMA72'] = df['Close'].rolling(72).mean()
                 
-                # Ultimos valores
-                close = float(df['Close'].iloc[-1])
-                sma17 = float(df['SMA17'].iloc[-1])
-                sma72 = float(df['SMA72'].iloc[-1])
+                # Extrair ultimos valores (garantir que sao escalares)
+                close_val = df['Close'].iloc[-1]
+                sma17_val = df['SMA17'].iloc[-1]
+                sma72_val = df['SMA72'].iloc[-1]
+                
+                # Converter Series para float se necessario
+                if hasattr(close_val, 'values'):
+                    close = float(close_val.values[0]) if len(close_val.values) > 0 else float(close_val)
+                else:
+                    close = float(close_val)
+                
+                if hasattr(sma17_val, 'values'):
+                    sma17 = float(sma17_val.values[0]) if len(sma17_val.values) > 0 else float(sma17_val)
+                else:
+                    sma17 = float(sma17_val)
+                    
+                if hasattr(sma72_val, 'values'):
+                    sma72 = float(sma72_val.values[0]) if len(sma72_val.values) > 0 else float(sma72_val)
+                else:
+                    sma72 = float(sma72_val)
+                
                 min5y = float(df['Close'].min())
                 max5y = float(df['Close'].max())
                 
@@ -81,7 +98,7 @@ def buscar_e_processar():
                 print("  [OK] " + ativo + ": " + sinal)
                 
             except Exception as e:
-                print("  [ERRO] " + ativo + ": " + str(e)[:50])
+                print("  [ERRO] " + ativo + ": " + str(e)[:80])
                 continue
     
     return relatorio
