@@ -42,45 +42,37 @@ def buscar_e_processar():
         
         for ativo in ativos:
             try:
-                # Buscar dados
+                # Buscar dados (yfinance retorna MultiIndex para coluna Close)
                 df = yf.download(ativo, period="5y", interval="1d", progress=False)
                 
                 if df is None or len(df) < 72:
-                    print("  [SKIP] " + ativo + ": Dados insuficientes ou None")
+                    print("  [SKIP] " + ativo + ": Dados insuficientes")
                     continue
                 
+                # Se tem MultiIndex, extrair a coluna correta
+                if isinstance(df.columns, pd.MultiIndex):
+                    # MultiIndex como ('Close', 'ITSA4.SA')
+                    close_col = [col for col in df.columns if col[0] == 'Close'][0]
+                    df_close = df[close_col].copy()
+                else:
+                    # Single index normal
+                    df_close = df['Close'].copy()
+                
                 # Calcular SMA
-                df['SMA17'] = df['Close'].rolling(17).mean()
-                df['SMA72'] = df['Close'].rolling(72).mean()
+                sma17 = df_close.rolling(17).mean()
+                sma72 = df_close.rolling(72).mean()
                 
-                # Extrair ultimos valores (garantir que sao escalares)
-                close_val = df['Close'].iloc[-1]
-                sma17_val = df['SMA17'].iloc[-1]
-                sma72_val = df['SMA72'].iloc[-1]
-                
-                # Converter Series para float se necessario
-                if hasattr(close_val, 'values'):
-                    close = float(close_val.values[0]) if len(close_val.values) > 0 else float(close_val)
-                else:
-                    close = float(close_val)
-                
-                if hasattr(sma17_val, 'values'):
-                    sma17 = float(sma17_val.values[0]) if len(sma17_val.values) > 0 else float(sma17_val)
-                else:
-                    sma17 = float(sma17_val)
-                    
-                if hasattr(sma72_val, 'values'):
-                    sma72 = float(sma72_val.values[0]) if len(sma72_val.values) > 0 else float(sma72_val)
-                else:
-                    sma72 = float(sma72_val)
-                
-                min5y = float(df['Close'].min())
-                max5y = float(df['Close'].max())
+                # Extrair ultimos valores
+                close = float(df_close.iloc[-1])
+                sma17_val = float(sma17.iloc[-1])
+                sma72_val = float(sma72.iloc[-1])
+                min5y = float(df_close.min())
+                max5y = float(df_close.max())
                 
                 # Determinar sinal
-                if sma17 > sma72:
+                if sma17_val > sma72_val:
                     sinal = "COMPRA"
-                elif sma17 < sma72:
+                elif sma17_val < sma72_val:
                     sinal = "VENDA"
                 else:
                     sinal = "NEUTRO"
@@ -88,8 +80,8 @@ def buscar_e_processar():
                 relatorio["carteiras"][carteira].append({
                     "Ativo": ativo,
                     "Fechamento": round(close, 2),
-                    "SMA17": round(sma17, 2),
-                    "SMA72": round(sma72, 2),
+                    "SMA17": round(sma17_val, 2),
+                    "SMA72": round(sma72_val, 2),
                     "Min (5y)": round(min5y, 2),
                     "Max (5y)": round(max5y, 2),
                     "Sinal": sinal
