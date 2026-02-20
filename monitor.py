@@ -22,14 +22,10 @@ except:
 # Configurações
 BRT = timezone(timedelta(hours=-3))
 CARTEIRAS = {
-    "Ações - Top Blue Chips": ["VALE3.SA", "PETR3.SA", "RDOR3.SA", "LREN3.SA", "BBDC4.SA"],
-    "Ações - Tecnologia": ["NEOE3.SA", "ITSA4.SA", "WEGE3.SA", "MGLU3.SA", "POSI3.SA"],
-    "Ações - Bancos": ["ITUB4.SA", "BBAS3.SA", "SANB11.SA", "BRSR6.SA", "ABCB4.SA"],
-    "Ações - Varejo": ["PCAR3.SA", "MOVI3.SA", "AMAR3.SA", "ASAI3.SA", "AMER3.SA"],
-    "ETF - Índices": ["IVVB11.SA", "BOVA11.SA", "PIBB11.SA", "ECOO11.SA", "RSPD11.SA"],
-    "ETF - Setoriais": ["GOLD11.SA", "AGRO3.SA", "SMAL11.SA", "XINA11.SA", "BBSD11.SA"],
-    "Criptomoedas": ["BTC-USD", "ETH-USD"],
-    "Commodities": ["GC=F", "CL=F"]
+    "Carteira Ações": ["ITSA4.SA", "NEOE3.SA", "BBDC4.SA", "LREN3.SA", "RDOR3.SA", "GOAU4.SA", "KLBN4.SA", "EGIE3.SA", "FLRY3.SA", "RECV3.SA", "JHSF3.SA"],
+    "Carteira ETF": ["IVVB11.SA", "DIVO11.SA", "GOLD11.SA", "HASH11.SA"],
+    "Watchlist": ["VALE3.SA", "PETR3.SA", "BTC-USD", "GC=F", "SI=F"],
+    "Especulação": []
 }
 
 def agora():
