@@ -1,8 +1,101 @@
 {
-  "timestamp": "2026-02-20T16:24:30.515818-03:00",
+  "timestamp": "2026-02-20T16:28:47.915008-03:00",
   "carteiras": {
-    "Ações": [],
-    "ETF": [],
-    "Outros": []
+    "Ações": [
+      {
+        "Ativo": "ITSA4.SA",
+        "Fechamento": 14.96,
+        "SMA17": 14.28,
+        "SMA72": 12.18,
+        "Min (5y)": 4.66,
+        "Max (5y)": 15.04,
+        "Sinal": "COMPRA"
+      },
+      {
+        "Ativo": "NEOE3.SA",
+        "Fechamento": 32.74,
+        "SMA17": 32.55,
+        "SMA72": 31.45,
+        "Min (5y)": 11.42,
+        "Max (5y)": 32.75,
+        "Sinal": "COMPRA"
+      },
+      {
+        "Ativo": "BBDC4.SA",
+        "Fechamento": 21.62,
+        "SMA17": 21.25,
+        "SMA72": 19.23,
+        "Min (5y)": 9.87,
+        "Max (5y)": 21.7,
+        "Sinal": "COMPRA"
+      },
+      {
+        "Ativo": "LREN3.SA",
+        "Fechamento": 15.57,
+        "SMA17": 15.32,
+        "SMA72": 14.45,
+        "Min (5y)": 9.72,
+        "Max (5y)": 33.58,
+        "Sinal": "COMPRA"
+      },
+      {
+        "Ativo": "RDOR3.SA",
+        "Fechamento": 44.76,
+        "SMA17": 42.77,
+        "SMA72": 41.9,
+        "Min (5y)": 17.39,
+        "Max (5y)": 64.24,
+        "Sinal": "COMPRA"
+      }
+    ],
+    "ETF": [
+      {
+        "Ativo": "IVVB11.SA",
+        "Fechamento": 402.43,
+        "SMA17": 405.64,
+        "SMA72": 412.36,
+        "Min (5y)": 206.3,
+        "Max (5y)": 433.08,
+        "Sinal": "VENDA"
+      },
+      {
+        "Ativo": "GOLD11.SA",
+        "Fechamento": 27.33,
+        "SMA17": 27.27,
+        "SMA72": 25.06,
+        "Min (5y)": 8.88,
+        "Max (5y)": 29.17,
+        "Sinal": "COMPRA"
+      }
+    ],
+    "Outros": [
+      {
+        "Ativo": "VALE3.SA",
+        "Fechamento": 85.8,
+        "SMA17": 86.64,
+        "SMA72": 73.64,
+        "Min (5y)": 42.38,
+        "Max (5y)": 90.09,
+        "Sinal": "COMPRA"
+      },
+      {
+        "Ativo": "PETR3.SA",
+        "Fechamento": 40.77,
+        "SMA17": 39.97,
+        "SMA72": 34.66,
+        "Min (5y)": 6.2,
+        "Max (5y)": 41.19,
+        "Sinal": "COMPRA"
+      },
+      {
+        "Ativo": "BTC-USD",
+        "Fechamento": 67670.15,
+        "SMA17": 68397.44,
+        "SMA72": 83991.58,
+        "Min (5y)": 15787.28,
+        "Max (5y)": 124752.53,
+        "Sinal": "VENDA"
+      }
+    ]
   }
 }
