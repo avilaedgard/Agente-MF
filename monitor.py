@@ -5,6 +5,7 @@ Atualiza relatório HTML a cada hora e envia alertas por email diariamente.
 """
 
 import os
+import sys
 import json
 import time
 import smtplib
@@ -13,8 +14,13 @@ from pathlib import Path
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-import yfinance as yf
-import pandas as pd
+try:
+    import yfinance as yf
+    import pandas as pd
+except ImportError as e:
+    print(f"❌ Erro ao importar dependências: {e}")
+    print("Instale com: pip install yfinance pandas requests")
+    sys.exit(1)
 
 # ============================================================================
 # CONFIGURAÇÕES
@@ -31,16 +37,22 @@ CARTEIRAS = {
     "Especulação": ["CEAB3.SA", "S1BS34.SA"]
 }
 
-# Email
-EMAIL_SENDER = os.getenv("EMAIL_SENDER", "")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
-EMAIL_RECIPIENT = os.getenv("EMAIL_RECIPIENT", "")
+# Email (com fallback para valores padrão vazios)
+EMAIL_SENDER = os.getenv("EMAIL_SENDER", "").strip()
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "").strip()
+EMAIL_RECIPIENT = os.getenv("EMAIL_RECIPIENT", "").strip()
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
 # Caminhos
 CAMINHO_HTML = "relatorio_monitor.html"
 CAMINHO_DATA = "data/current-analysis.json"
+
+# Debug: mostrar status de configuração
+if os.getenv("DEBUG") == "1":
+    print(f"[DEBUG] EMAIL_SENDER configurado: {'✅' if EMAIL_SENDER else '❌'}")
+    print(f"[DEBUG] EMAIL_PASSWORD configurado: {'✅' if EMAIL_PASSWORD else '❌'}")
+    print(f"[DEBUG] EMAIL_RECIPIENT configurado: {'✅' if EMAIL_RECIPIENT else '❌'}")
 
 # ============================================================================
 # FUNÇÕES AUXILIARES
@@ -206,17 +218,29 @@ def enviar_email_alerta(sinais_finais):
         msg.attach(MIMEText(corpo_html, 'html'))
         
         # Enviar email
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.send_message(msg)
-        
-        print(f"  ✅ Email enviado com sucesso para {EMAIL_RECIPIENT}")
-        return True
-    
-    except Exception as e:
-        print(f"  ❌ Erro ao enviar email: {str(e)}")
-        return False
+        try:
+            print(f"  📧 Conectando ao SMTP ({SMTP_SERVER}:{SMTP_PORT})...")
+            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+                print(f"  🔐 Iniciando TLS...")
+                server.starttls()
+                print(f"  👤 Fazendo login como {EMAIL_SENDER}...")
+                server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+                print(f"  📤 Enviando mensagem...")
+                server.send_message(msg)
+                print(f"  ✅ Email enviado com sucesso para {EMAIL_RECIPIENT}")
+            return True
+        except smtplib.SMTPAuthenticationError as e:
+            print(f"  ❌ ERRO DE AUTENTICAÇÃO: Verifique EMAIL_SENDER e EMAIL_PASSWORD")
+            print(f"     Erro: {str(e)}")
+            return False
+        except smtplib.SMTPException as e:
+            print(f"  ❌ ERRO DE SMTP: {str(e)}")
+            return False
+        except Exception as e:
+            print(f"  ❌ ERRO ao enviar email: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
 
 # ============================================================================
 # GERAÇÃO DE HTML

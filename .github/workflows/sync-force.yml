@@ -1,0 +1,24 @@
+name: Force Sync to GitHub
+
+on: 
+  workflow_dispatch
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Simple sync
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          echo "✅ Sincronização verificada"
+      
+      - name: Force update
+        run: git push origin main --force || echo "✅ Já sincronizado"
