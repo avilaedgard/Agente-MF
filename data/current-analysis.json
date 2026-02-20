@@ -1,10 +1,8 @@
 {
-  "timestamp": "2026-02-12T15:07:28.374684-03:00",
+  "timestamp": "2026-02-20T16:21:15.468925-03:00",
   "carteiras": {
-    "Carteira Ações": [],
-    "Carteira ETF": [],
-    "Watchlist": [],
-    "Especulação": []
-  },
-  "sinais_recentes": []
+    "Ações": [],
+    "ETF": [],
+    "Outros": []
+  }
 }
