@@ -153,94 +153,58 @@ def enviar_email_alerta(sinais_finais):
         msg['To'] = EMAIL_RECIPIENT
         msg['Subject'] = f"🔔 [ALERTA] Cruzamentos de Médias - {agora_brt().strftime('%d/%m/%Y %H:%M')}"
         
-        # Montar tabela de sinais
-        corpo_html = """
-        <html>
-        <head>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-                .container { background: white; padding: 30px; border-radius: 8px; max-width: 800px; margin: 0 auto; }
-                h2 { color: #333; border-bottom: 3px solid #0366d6; padding-bottom: 10px; }
-                table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-                th { background: #0366d6; color: white; padding: 12px; text-align: left; }
-                td { padding: 10px; border-bottom: 1px solid #ddd; }
-                tr:hover { background: #f9f9f9; }
-                .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
-                .link { color: #0366d6; text-decoration: none; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h2>🔔 Relatório de Cruzamentos de Médias Móveis</h2>
-                <p><strong>Data/Hora:</strong> {DATA_HORA}</p>
-                <p><strong>Sinais detectados nos últimos 14 dias:</strong> {TOTAL}</p>
-                
-                <table>
-                    <tr>
-                        <th>Ativo</th>
-                        <th>Carteira</th>
-                        <th>Sinal</th>
-                        <th>Preço</th>
-                        <th>Data</th>
-                        <th>SMA17</th>
-                        <th>SMA72</th>
-                    </tr>
-        """
-        
-        corpo_html = corpo_html.replace("{DATA_HORA}", agora_brt().strftime('%d/%m/%Y %H:%M:%S'))
-        corpo_html = corpo_html.replace("{TOTAL}", str(len(sinais_finais)))
+        # Montar HTML
+        corpo_html = '<html><head><style>'
+        corpo_html += 'body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }'
+        corpo_html += '.container { background: white; padding: 30px; border-radius: 8px; max-width: 800px; margin: 0 auto; }'
+        corpo_html += 'h2 { color: #333; border-bottom: 3px solid #0366d6; padding-bottom: 10px; }'
+        corpo_html += 'table { width: 100%; border-collapse: collapse; margin: 20px 0; }'
+        corpo_html += 'th { background: #0366d6; color: white; padding: 12px; text-align: left; }'
+        corpo_html += 'td { padding: 10px; border-bottom: 1px solid #ddd; }'
+        corpo_html += 'tr:hover { background: #f9f9f9; }'
+        corpo_html += '.footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }'
+        corpo_html += '.link { color: #0366d6; text-decoration: none; }'
+        corpo_html += '</style></head><body>'
+        corpo_html += '<div class="container">'
+        corpo_html += '<h2>🔔 Relatório de Cruzamentos de Médias Móveis</h2>'
+        corpo_html += f'<p><strong>Data/Hora:</strong> {agora_brt().strftime("%d/%m/%Y %H:%M:%S")}</p>'
+        corpo_html += f'<p><strong>Sinais detectados:</strong> {len(sinais_finais)}</p>'
+        corpo_html += '<table><tr><th>Ativo</th><th>Carteira</th><th>Sinal</th><th>Preço</th><th>Data</th><th>SMA17</th><th>SMA72</th></tr>'
         
         for item in sinais_finais:
-            corpo_html += f"""
-                    <tr>
-                        <td><strong>{item['Ativo']}</strong></td>
-                        <td>{item['Carteira']}</td>
-                        <td><strong>{item['Sinal']}</strong></td>
-                        <td>R$ {item['Preco']}</td>
-                        <td>{item['Data']}</td>
-                        <td>{item['SMA17']}</td>
-                        <td>{item['SMA72']}</td>
-                    </tr>
-            """
+            corpo_html += f"<tr><td><strong>{item['Ativo']}</strong></td><td>{item['Carteira']}</td><td><strong>{item['Sinal']}</strong></td>"
+            corpo_html += f"<td>R$ {item['Preco']}</td><td>{item['Data']}</td><td>{item['SMA17']}</td><td>{item['SMA72']}</td></tr>"
         
-        corpo_html += """
-                </table>
-                
-                <div class="footer">
-                    <p>📊 <a href="https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html" class="link">Ver relatório completo</a></p>
-                    <p>Este é um email automático do sistema <strong>Vigilante</strong>.</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
+        corpo_html += '</table><div class="footer">'
+        corpo_html += '<p>📊 <a href="https://avilaedgard.github.io/Agente-MF/relatorio_monitor.html" class="link">Ver relatório completo</a></p>'
+        corpo_html += '<p>Este é um email automático do sistema <strong>Vigilante</strong>.</p>'
+        corpo_html += '</div></div></body></html>'
         
         msg.attach(MIMEText(corpo_html, 'html'))
         
         # Enviar email
-        try:
-            print(f"  📧 Conectando ao SMTP ({SMTP_SERVER}:{SMTP_PORT})...")
-            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-                print(f"  🔐 Iniciando TLS...")
-                server.starttls()
-                print(f"  👤 Fazendo login como {EMAIL_SENDER}...")
-                server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-                print(f"  📤 Enviando mensagem...")
-                server.send_message(msg)
-                print(f"  ✅ Email enviado com sucesso para {EMAIL_RECIPIENT}")
-            return True
-        except smtplib.SMTPAuthenticationError as e:
-            print(f"  ❌ ERRO DE AUTENTICAÇÃO: Verifique EMAIL_SENDER e EMAIL_PASSWORD")
-            print(f"     Erro: {str(e)}")
-            return False
-        except smtplib.SMTPException as e:
-            print(f"  ❌ ERRO DE SMTP: {str(e)}")
-            return False
-        except Exception as e:
-            print(f"  ❌ ERRO ao enviar email: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return False
+        print(f"  📧 Conectando ao SMTP ({SMTP_SERVER}:{SMTP_PORT})...")
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            print(f"  🔐 Iniciando TLS...")
+            server.starttls()
+            print(f"  👤 Fazendo login como {EMAIL_SENDER}...")
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            print(f"  📤 Enviando mensagem...")
+            server.send_message(msg)
+        
+        print(f"  ✅ Email enviado com sucesso para {EMAIL_RECIPIENT}")
+        return True
+    
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"  ❌ ERRO DE AUTENTICAÇÃO: Verifique EMAIL_SENDER e EMAIL_PASSWORD")
+        print(f"     Erro: {str(e)}")
+        return False
+    except smtplib.SMTPException as e:
+        print(f"  ❌ ERRO DE SMTP: {str(e)}")
+        return False
+    except Exception as e:
+        print(f"  ❌ ERRO ao enviar email: {str(e)}")
+        return False
 
 # ============================================================================
 # GERAÇÃO DE HTML
