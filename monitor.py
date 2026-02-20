@@ -25,7 +25,7 @@ CARTEIRAS = {
     "Carteira Ações": ["ITSA4.SA", "NEOE3.SA", "BBDC4.SA", "LREN3.SA", "RDOR3.SA", "GOAU4.SA", "KLBN4.SA", "EGIE3.SA", "FLRY3.SA", "RECV3.SA", "JHSF3.SA"],
     "Carteira ETF": ["IVVB11.SA", "DIVO11.SA", "GOLD11.SA", "HASH11.SA"],
     "Watchlist": ["VALE3.SA", "PETR3.SA", "BTC-USD", "GC=F", "SI=F"],
-    "Especulação": []
+    "Especulação": ["CEAB3.SA", "S1BS34.SA"]
 }
 
 def agora():
@@ -82,6 +82,29 @@ def buscar_e_processar():
                 else:
                     sinal = "NEUTRO"
                 
+                # Calcular data do último cruzamento
+                ultimo_cruzamento = "N/A"
+                try:
+                    # Criar DataFrame com as duas SMAs
+                    df_sma = pd.DataFrame({
+                        'sma17': sma17,
+                        'sma72': sma72
+                    })
+                    # Calcular diferença (positivo = SMA17 acima, negativo = SMA17 abaixo)
+                    df_sma['diff'] = df_sma['sma17'] - df_sma['sma72']
+                    # Detectar mudança de sinal (cruzamento)
+                    df_sma['signal'] = df_sma['diff'].apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+                    df_sma['cross'] = df_sma['signal'].diff().abs() > 0
+                    
+                    # Pegar índices onde houve cruzamento
+                    crosses = df_sma[df_sma['cross'] == True].index
+                    
+                    if len(crosses) > 0:
+                        ultima_data_cross = crosses[-1]
+                        ultimo_cruzamento = ultima_data_cross.strftime('%d/%m/%Y')
+                except:
+                    ultimo_cruzamento = "N/A"
+                
                 relatorio["carteiras"][carteira].append({
                     "Ativo": ativo,
                     "Fechamento": round(close, 2),
@@ -89,7 +112,8 @@ def buscar_e_processar():
                     "SMA72": round(sma72_val, 2),
                     "Min (5y)": round(min5y, 2),
                     "Max (5y)": round(max5y, 2),
-                    "Sinal": sinal
+                    "Sinal": sinal,
+                    "Último Cruzamento": ultimo_cruzamento
                 })
                 
                 # Salvar últimos 365 dias para gráficos
@@ -226,7 +250,7 @@ def gerar_html_simples(relatorio):
             font-weight: 600;
             color: #333;
             border-right: 1px solid #eee;
-            width: 14.28%;
+            width: 12.5%;
         }
         th:last-child {
             border-right: none;
@@ -235,7 +259,7 @@ def gerar_html_simples(relatorio):
             padding: 16px 18px;
             border-bottom: 1px solid #eee;
             border-right: 1px solid #eee;
-            width: 14.28%;
+            width: 12.5%;
         }
         td:last-child {
             border-right: none;
@@ -406,6 +430,7 @@ def gerar_html_simples(relatorio):
         html += '<th>SMA72</th>'
         html += '<th>Mín (5y)</th>'
         html += '<th>Máx (5y)</th>'
+        html += '<th>Último Cruzamento</th>'
         html += '<th>Sinal</th>'
         html += '</tr></thead>\n'
         html += '<tbody>\n'
@@ -421,6 +446,7 @@ def gerar_html_simples(relatorio):
             html += '<td>' + str(item['SMA72']) + '</td>'
             html += '<td>R$ ' + str(item['Min (5y)']) + '</td>'
             html += '<td>R$ ' + str(item['Max (5y)']) + '</td>'
+            html += '<td>' + str(item.get('Último Cruzamento', 'N/A')) + '</td>'
             html += '<td><span class="sinal ' + cls + '">' + item['Sinal'] + '</span></td>'
             html += '</tr>\n'
         
