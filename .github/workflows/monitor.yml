@@ -2,9 +2,10 @@ name: Monitor - Atualizar HTML e Enviar Alertas
 
 on:
   schedule:
-    # Executa a cada hora às :00 (mais simples e confiável)
-    # Convertendo para UTC: 10h-19h BRT = 13h-22h UTC
-    - cron: "0 13-22 * * *"
+    # Executa a cada 10 minutos durante horário do mercado
+    # 9h-19h BRT = 12h-22h UTC
+    # Minutos: 0, 10, 20, 30, 40, 50
+    - cron: "0,10,20,30,40,50 12-22 * * *"
   
   # Permite execução manual
   workflow_dispatch:
