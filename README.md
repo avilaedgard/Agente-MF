@@ -23,7 +23,7 @@
 
 | Carteira | Ativos |
 |----------|--------|
-| **Ações** | ITSA4.SA, NEOE3.SA, BBDC4.SA, LREN3.SA, RDOR3.SA, GOAU4.SA, KLBN4.SA, EGIE3.SA, RECV3.SA, JHSF3.SA |
+| **Ações** | ITSA4.SA, BBSE3.SA, ODPV3.SA, BBDC4.SA, LREN3.SA, RDOR3.SA, GOAU4.SA, KLBN4.SA, EGIE3.SA, RECV3.SA, JHSF3.SA |
 | **ETFs** | IVVB11.SA, GOLD11.SA, DIVO11.SA, HASH11.SA |
 | **Watchlist** | VALE3.SA, PETR3.SA, BTC-USD |
 | **Especulação** | CEAB3.SA, S1BS34.SA |
