@@ -22,10 +22,10 @@ except:
 # Configurações
 BRT = timezone(timedelta(hours=-3))
 CARTEIRAS = {
-    "Carteira Ações": ["ITSA4.SA", "BBSE3.SA", "ODPV3.SA", "BBDC4.SA", "LREN3.SA", "RDOR3.SA", "GOAU4.SA", "KLBN4.SA", "EGIE3.SA", "FLRY3.SA", "RECV3.SA", "JHSF3.SA"],
+    "Carteira Ações": ["ITSA4.SA", "BBSE3.SA", "BBDC4.SA", "LREN3.SA", "RDOR3.SA", "GOAU4.SA", "KLBN4.SA", "FLRY3.SA", "JHSF3.SA", "SAUD3.SA", "TAEE11.SA", "VALE3.SA"],
     "Carteira ETF": ["IVVB11.SA", "DIVO11.SA", "GOLD11.SA", "HASH11.SA"],
     "Watchlist": ["VALE3.SA", "PETR3.SA", "BTC-USD", "GC=F", "SI=F"],
-    "Especulação": ["CEAB3.SA", "S1BS34.SA"]
+    "Especulação": ["RDOR3.SA"]
 }
 
 def agora():
