@@ -23,8 +23,8 @@ except:
 BRT = timezone(timedelta(hours=-3))
 CARTEIRAS = {
     "Carteira Ações": ["ITSA4.SA", "BBSE3.SA", "BBDC4.SA", "LREN3.SA", "RDOR3.SA", "GOAU4.SA", "KLBN4.SA", "FLRY3.SA", "JHSF3.SA", "SAUD3.SA", "TAEE11.SA", "VALE3.SA"],
-    "Carteira ETF": ["IVVB11.SA", "DIVO11.SA", "GOLD11.SA", "HASH11.SA"],
-    "Watchlist": ["VALE3.SA", "PETR3.SA", "BTC-USD", "GC=F", "SI=F"],
+    "Carteira ETF": ["IVVB11.SA", "DIVO11.SA", "GOLD11.SA", "HASH11.SA", "WRLD11.SA"],
+    "Watchlist": ["PETR3.SA", "BTC-USD", "GC=F", "SI=F"],
     "Especulação": ["RDOR3.SA"]
 }
 
